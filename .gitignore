@@ -1,0 +1,29 @@
+# Logs
+**/logs
+**/*.log
+**/npm-debug.log*
+
+# Dependency directories
+**/node_modules/
+
+# Build directories
+/frontend/build/
+/backend/dist/
+
+# Environment variables
+**/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.swp
+
+# Optional: Coverage reports
+**/coverage/
+
+# Optional: Temporary files
+*.tmp
