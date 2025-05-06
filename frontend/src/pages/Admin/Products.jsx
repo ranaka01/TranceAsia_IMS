@@ -7,14 +7,14 @@ import API from "../../utils/api"; // Import your configured API instance
 
 const Products = () => {
   // State for product categories
-  const [categories, setCategories] = useState(["All categories"]);
+  const [categories, setCategories] = useState([{ id: 'all', name: 'All categories' }]);
   
   // State for suppliers list
   const [suppliers, setSuppliers] = useState([]);
   
   // State for products data
   const [products, setProducts] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("All categories");
+  const [selectedCategory, setSelectedCategory] = useState({ id: 'all', name: 'All categories' });
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
@@ -44,11 +44,11 @@ const Products = () => {
     fetchProducts();
   }, [selectedCategory]);
   
-  // Fetch product categories - FIXED URL
+  // Fetch product categories
   const fetchCategories = async () => {
     try {
-      const response = await API.get(`${API_URL}/categories`); // Changed from /categories to ${API_URL}/categories
-      const fetchedCategories = response.data?.data?.categories || ["All categories"];
+      const response = await API.get(`${API_URL}/categories/all`);
+      const fetchedCategories = response.data?.data?.categories || [{ id: 'all', name: 'All categories' }];
       setCategories(fetchedCategories);
     } catch (err) {
       console.error("Error fetching categories:", err);
@@ -62,16 +62,20 @@ const Products = () => {
       const response = await API.get(SUPPLIERS_URL);
       const data = response.data?.data?.suppliers || [];
       
-      // Extract supplier names for the dropdown
-      const supplierNames = data.map(supplier => supplier.name);
-      setSuppliers(supplierNames);
+      // Extract supplier data for the dropdown
+      const supplierData = data.map(supplier => ({
+        id: supplier.id,
+        name: supplier.name
+      }));
+      
+      setSuppliers(supplierData);
     } catch (err) {
       console.error("Error fetching suppliers:", err);
       // Fallback to sample suppliers if API fails
       setSuppliers([
-        "Selix Computers",
-        "Tech Distributors",
-        "Global Electronics"
+        { id: 1, name: "Selix Computers" },
+        { id: 2, name: "Tech Distributors" },
+        { id: 3, name: "Global Electronics" }
       ]);
     }
   };
@@ -89,8 +93,8 @@ const Products = () => {
         params.push(`search=${encodeURIComponent(searchQuery)}`);
       }
       
-      if (selectedCategory && selectedCategory !== "All categories") {
-        params.push(`category=${encodeURIComponent(selectedCategory)}`);
+      if (selectedCategory && selectedCategory.id !== 'all') {
+        params.push(`categoryId=${encodeURIComponent(selectedCategory.id)}`);
       }
       
       if (params.length > 0) {
@@ -143,14 +147,139 @@ const Products = () => {
 
   const handleSearch = () => {
     // Explicitly perform search (for search button click)
-    // For server-side search, you might want to call fetchProducts instead
     performSearch(searchQuery);
+  };
+
+  // Category Management Functions
+  const handleAddCategory = async (categoryName) => {
+    if (!categoryName || categoryName.trim() === '') {
+      return false;
+    }
+    
+    // Check if category already exists
+    const categoryExists = categories.some(cat => 
+      cat.name.toLowerCase() === categoryName.toLowerCase()
+    );
+    
+    if (categoryExists) {
+      setError("Category already exists");
+      return false;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const response = await API.post(`${API_URL}/categories/add`, { category: categoryName });
+      
+      // Get the new category from the response
+      const newCategory = response.data?.data?.category;
+      
+      // Update categories state
+      setCategories(prevCategories => [...prevCategories, newCategory]);
+      return true;
+    } catch (err) {
+      console.error("Error adding category:", err);
+      setError(err.response?.data?.message || "Failed to add category");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleUpdateCategory = async (categoryId, newCategoryName) => {
+    if (!newCategoryName || newCategoryName.trim() === '') {
+      return false;
+    }
+    
+    // Find the category to update
+    const categoryToUpdate = categories.find(cat => cat.id === categoryId);
+    if (!categoryToUpdate) {
+      setError("Category not found");
+      return false;
+    }
+    
+    // Check if new name already exists
+    const categoryExists = categories.some(cat => 
+      cat.id !== categoryId && cat.name.toLowerCase() === newCategoryName.toLowerCase()
+    );
+    
+    if (categoryExists) {
+      setError("Category with this name already exists");
+      return false;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const response = await API.patch(`${API_URL}/categories/update`, {
+        oldCategory: categoryToUpdate.name,
+        newCategory: newCategoryName
+      });
+      
+      // Get the updated category info
+      const updatedCategory = response.data?.data?.category;
+      
+      // Update the categories state
+      setCategories(prevCategories => prevCategories.map(cat => 
+        cat.id === categoryId ? { ...cat, name: newCategoryName } : cat
+      ));
+      
+      // If the selected category was updated, update the selection
+      if (selectedCategory.id === categoryId) {
+        setSelectedCategory(prev => ({ ...prev, name: newCategoryName }));
+      }
+      
+      return true;
+    } catch (err) {
+      console.error("Error updating category:", err);
+      setError(err.response?.data?.message || "Failed to update category");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleDeleteCategory = async (categoryId) => {
+    // Find the category name for the API call
+    const categoryToDelete = categories.find(cat => cat.id === categoryId);
+    
+    if (!categoryToDelete || categoryToDelete.id === 'all') {
+      return false;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      await API.delete(`${API_URL}/categories/delete/${encodeURIComponent(categoryToDelete.name)}`);
+      
+      // Update the categories state
+      setCategories(prevCategories => prevCategories.filter(cat => cat.id !== categoryId));
+      
+      // If the deleted category was selected, reset to "All categories"
+      if (selectedCategory.id === categoryId) {
+        setSelectedCategory({ id: 'all', name: 'All categories' });
+      }
+      
+      return true;
+    } catch (err) {
+      console.error("Error deleting category:", err);
+      setError(err.response?.data?.message || "Failed to delete category");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handler for adding a new product
   const handleSaveProduct = async (productData) => {
+    // Update product data to include category ID if needed
+    const formattedData = {
+      ...productData,
+      // If only category name is provided, convert to the full category object
+      category: typeof productData.category === 'string' 
+        ? productData.category 
+        : productData.category.id
+    };
+    
     // Validate data before submitting
-    const errors = validateProductData(productData);
+    const errors = validateProductData(formattedData);
     
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -159,7 +288,7 @@ const Products = () => {
     
     setIsSubmitting(true);
     try {
-      const response = await API.post(API_URL, productData);
+      const response = await API.post(API_URL, formattedData);
       
       // Add the new product to the local state
       let newProduct;
@@ -178,33 +307,7 @@ const Products = () => {
       setValidationErrors({});
     } catch (err) {
       console.error("Error adding product:", err);
-      
-      // Handle API error responses
-      if (err.response?.data?.message) {
-        setValidationErrors({
-          submit: err.response.data.message
-        });
-      } else if (err.response?.data?.errors) {
-        const apiErrors = err.response.data.errors;
-        
-        // Map API errors to form fields
-        const fieldErrors = {};
-        if (apiErrors.title) fieldErrors.title = apiErrors.title;
-        if (apiErrors.category) fieldErrors.category = apiErrors.category;
-        if (apiErrors.supplier) fieldErrors.supplier = apiErrors.supplier;
-        
-        if (Object.keys(fieldErrors).length > 0) {
-          setValidationErrors(fieldErrors);
-        } else {
-          setValidationErrors({
-            submit: "Failed to add product. Please try again."
-          });
-        }
-      } else {
-        setValidationErrors({
-          submit: "Failed to add product. Please try again."
-        });
-      }
+      handleApiValidationErrors(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -223,8 +326,17 @@ const Products = () => {
   };
 
   const handleUpdateProduct = async (updatedData) => {
+    // Update product data to include category ID if needed
+    const formattedData = {
+      ...updatedData,
+      // If only category name is provided, convert to the full category object
+      category: typeof updatedData.category === 'string' 
+        ? updatedData.category 
+        : updatedData.category.id
+    };
+    
     // Validate data before submitting
-    const errors = validateProductData(updatedData);
+    const errors = validateProductData(formattedData);
     
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -233,48 +345,17 @@ const Products = () => {
     
     setIsSubmitting(true);
     try {
-      await API.patch(`${API_URL}/${currentProduct.id}`, updatedData);
+      await API.patch(`${API_URL}/${currentProduct.id}`, formattedData);
       
-      // Update local state
-      const updatedProducts = products.map(product =>
-        product.id === currentProduct.id
-          ? { ...product, ...updatedData }
-          : product
-      );
+      // Refresh products to get updated data
+      fetchProducts();
       
-      setProducts(updatedProducts);
       setIsEditProductModalOpen(false);
       setCurrentProduct(null);
       setValidationErrors({});
     } catch (err) {
       console.error("Error updating product:", err);
-      
-      // Handle API error responses
-      if (err.response?.data?.message) {
-        setValidationErrors({
-          submit: err.response.data.message
-        });
-      } else if (err.response?.data?.errors) {
-        const apiErrors = err.response.data.errors;
-        
-        // Map API errors to form fields
-        const fieldErrors = {};
-        if (apiErrors.title) fieldErrors.title = apiErrors.title;
-        if (apiErrors.category) fieldErrors.category = apiErrors.category;
-        if (apiErrors.supplier) fieldErrors.supplier = apiErrors.supplier;
-        
-        if (Object.keys(fieldErrors).length > 0) {
-          setValidationErrors(fieldErrors);
-        } else {
-          setValidationErrors({
-            submit: "Failed to update product. Please try again."
-          });
-        }
-      } else {
-        setValidationErrors({
-          submit: "Failed to update product. Please try again."
-        });
-      }
+      handleApiValidationErrors(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -290,7 +371,7 @@ const Products = () => {
       errors.title = "Product title must be at least 3 characters";
     }
     
-    if (!data.category || data.category.trim() === "") {
+    if (!data.category) {
       errors.category = "Category is required";
     }
     
@@ -316,11 +397,40 @@ const Products = () => {
       errors.warranty = "Warranty must be a non-negative number";
     }
     
-    if (!data.supplier || data.supplier.trim() === "") {
+    if (!data.supplier) {
       errors.supplier = "Supplier is required";
     }
     
     return errors;
+  };
+
+  const handleApiValidationErrors = (err) => {
+    // Handle API error responses
+    if (err.response?.data?.message) {
+      setValidationErrors({
+        submit: err.response.data.message
+      });
+    } else if (err.response?.data?.errors) {
+      const apiErrors = err.response.data.errors;
+      
+      // Map API errors to form fields
+      const fieldErrors = {};
+      if (apiErrors.title) fieldErrors.title = apiErrors.title;
+      if (apiErrors.category) fieldErrors.category = apiErrors.category;
+      if (apiErrors.supplier) fieldErrors.supplier = apiErrors.supplier;
+      
+      if (Object.keys(fieldErrors).length > 0) {
+        setValidationErrors(fieldErrors);
+      } else {
+        setValidationErrors({
+          submit: "Failed to process product. Please try again."
+        });
+      }
+    } else {
+      setValidationErrors({
+        submit: "Failed to process product. Please try again."
+      });
+    }
   };
 
   const handleDeleteClick = (product) => {
@@ -366,98 +476,6 @@ const Products = () => {
   const handleCloseDetails = () => {
     setShowProductDetails(false);
     setSelectedProduct(null);
-  };
-
-  // Category Management Functions - these will be passed to the CategoriesManagement component
-  const handleAddCategory = async (categoryName) => {
-    if (!categoryName || categoryName.trim() === '') {
-      return false;
-    }
-    
-    // Exclude "All categories" from the comparison
-    const filteredCategories = categories.filter(cat => cat !== "All categories");
-    
-    if (filteredCategories.includes(categoryName)) {
-      setError("Category already exists");
-      return false;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      await API.post(`${API_URL}/categories`, { category: categoryName });
-      setCategories([...categories, categoryName]);
-      return true;
-    } catch (err) {
-      console.error("Error adding category:", err);
-      setError(err.response?.data?.message || "Failed to add category");
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const handleUpdateCategory = async (oldCategory, newCategory) => {
-    if (!newCategory || newCategory.trim() === '' || newCategory === oldCategory) {
-      return false;
-    }
-    
-    // Check if new category name already exists
-    const filteredCategories = categories.filter(cat => cat !== "All categories");
-    if (filteredCategories.includes(newCategory)) {
-      setError("Category already exists");
-      return false;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      await API.patch(`${API_URL}/categories`, { oldCategory, newCategory });
-      
-      const updatedCategories = categories.map(cat => 
-        cat === oldCategory ? newCategory : cat
-      );
-      
-      setCategories(updatedCategories);
-      
-      // If the selected category was edited, update the selection
-      if (selectedCategory === oldCategory) {
-        setSelectedCategory(newCategory);
-      }
-      
-      return true;
-    } catch (err) {
-      console.error("Error updating category:", err);
-      setError(err.response?.data?.message || "Failed to update category");
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const handleDeleteCategory = async (category) => {
-    if (!category || category === "All categories") {
-      return false;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      await API.delete(`${API_URL}/categories/${encodeURIComponent(category)}`);
-      
-      const updatedCategories = categories.filter(cat => cat !== category);
-      setCategories(updatedCategories);
-      
-      // If the deleted category was selected, reset to "All categories"
-      if (selectedCategory === category) {
-        setSelectedCategory("All categories");
-      }
-      
-      return true;
-    } catch (err) {
-      console.error("Error deleting category:", err);
-      setError(err.response?.data?.message || "Failed to delete category");
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   // Helper function to display warranty text
@@ -537,8 +555,8 @@ const Products = () => {
                     <tr className="border-b border-gray-200">
                       <th className="py-3 px-4 text-left">Product ID</th>
                       <th className="py-3 px-4 text-left">Title</th>
+                      <th className="py-3 px-4 text-left">Category</th>
                       <th className="py-3 px-4 text-left">Quantity</th>
-                      <th className="py-3 px-4 text-left">Supply Price</th>
                       <th className="py-3 px-4 text-left">Retail Price</th>
                       <th className="py-3 px-4 text-center">Actions</th>
                     </tr>
@@ -549,8 +567,8 @@ const Products = () => {
                         <tr key={product.id} className="border-b border-gray-200 hover:bg-gray-50">
                           <td className="py-3 px-4">{product.id}</td>
                           <td className="py-3 px-4">{product.title}</td>
+                          <td className="py-3 px-4">{product.category}</td>
                           <td className="py-3 px-4">{product.quantity}</td>
-                          <td className="py-3 px-4">{parseFloat(product.supplyPrice).toFixed(2)}</td>
                           <td className="py-3 px-4">{parseFloat(product.retailPrice).toFixed(2)}</td>
                           <td className="py-3 px-4 text-center">
                             <div className="flex justify-center space-x-2">
@@ -638,7 +656,7 @@ const Products = () => {
         isOpen={isAddProductModalOpen}
         onClose={() => setIsAddProductModalOpen(false)}
         onSave={handleSaveProduct}
-        categories={categories.filter(cat => cat !== "All categories")}
+        categories={categories.filter(cat => cat.id !== 'all')}
         suppliers={suppliers}
         isEdit={false}
         validationErrors={validationErrors}
@@ -646,12 +664,12 @@ const Products = () => {
       />
 
       {/* Edit Product Modal */}
-      {isEditProductModalOpen && (
+      {isEditProductModalOpen && currentProduct && (
         <AddProductModal
           isOpen={isEditProductModalOpen}
           onClose={handleCloseEditModal}
           onSave={handleUpdateProduct}
-          categories={categories.filter(cat => cat !== "All categories")}
+          categories={categories.filter(cat => cat.id !== 'all')}
           suppliers={suppliers}
           isEdit={true}
           currentProduct={currentProduct}
@@ -661,7 +679,7 @@ const Products = () => {
       )}
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
+      {showDeleteConfirm && productToDelete && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-md p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
@@ -706,7 +724,7 @@ const Products = () => {
       )}
 
       {/* Product Details Modal */}
-      {showProductDetails && (
+      {showProductDetails && selectedProduct && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-md p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">

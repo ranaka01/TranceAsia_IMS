@@ -31,7 +31,7 @@ const AddProductModal = ({
         // If in edit mode, populate form with current product data
         setFormData({
           title: currentProduct.title || "",
-          category: currentProduct.category || "",
+          category: currentProduct.categoryId || "",
           supplyPrice: currentProduct.supplyPrice?.toString() || "",
           retailPrice: currentProduct.retailPrice?.toString() || "",
           quantity: currentProduct.quantity?.toString() || "",
@@ -224,7 +224,7 @@ const AddProductModal = ({
               )}
             </div>
             
-            {/* Category */}
+            {/* Category - Updated to work with category objects */}
             <div>
               <label className="block text-gray-700 text-sm mb-1">
                 Category <span className="text-red-500">*</span>
@@ -239,9 +239,9 @@ const AddProductModal = ({
                 disabled={loading}
               >
                 <option value="" disabled>Select category</option>
-                {categories.map((category, index) => (
-                  <option key={index} value={category}>
-                    {category}
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
                   </option>
                 ))}
               </select>
@@ -342,7 +342,7 @@ const AddProductModal = ({
               )}
             </div>
             
-            {/* Supplier */}
+            {/* Supplier - Updated for supplier objects */}
             <div>
               <label className="block text-gray-700 text-sm mb-1">
                 Supplier <span className="text-red-500">*</span>
@@ -357,9 +357,9 @@ const AddProductModal = ({
                 disabled={loading}
               >
                 <option value="" disabled>Select supplier</option>
-                {suppliers.map((supplier, index) => (
-                  <option key={index} value={supplier}>
-                    {supplier}
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.name}>
+                    {supplier.name}
                   </option>
                 ))}
               </select>

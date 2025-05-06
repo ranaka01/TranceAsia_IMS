@@ -8,19 +8,17 @@ const router = express.Router();
 // Protect all routes with authentication
 router.use(authenticateUser);
 
-// Routes accessible by all authenticated users
+// Product routes
 router.get('/', productController.getAllProducts);
-router.get('/categories', productController.getCategories);
 router.get('/:id', productController.getProduct);
-
-// Routes accessible only by admin users
 router.post('/', authorizeRole(['Admin']), productController.createProduct);
 router.patch('/:id', authorizeRole(['Admin']), productController.updateProduct);
 router.delete('/:id', authorizeRole(['Admin']), productController.deleteProduct);
 
-// Category management routes (admin only)
-router.post('/categories', authorizeRole(['Admin']), productController.addCategory);
-router.patch('/categories', authorizeRole(['Admin']), productController.updateCategory);
-router.delete('/categories/:category', authorizeRole(['Admin']), productController.deleteCategory);
+// Category routes - Separated from product routes
+router.get('/categories/all', productController.getCategories);
+router.post('/categories/add', authorizeRole(['Admin']), productController.addCategory);
+router.patch('/categories/update', authorizeRole(['Admin']), productController.updateCategory);
+router.delete('/categories/delete/:category', authorizeRole(['Admin']), productController.deleteCategory);
 
 module.exports = router;

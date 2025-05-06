@@ -13,7 +13,7 @@ const CategoriesManagement = ({
 }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [currentCategory, setCurrentCategory] = useState("");
+  const [currentCategory, setCurrentCategory] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [error, setError] = useState(null);
@@ -41,30 +41,30 @@ const CategoriesManagement = ({
 
   const handleEditClick = (category) => {
     // Skip "All categories" - it shouldn't be editable
-    if (category === "All categories") return;
+    if (category.id === 'all') return;
     
     setCurrentCategory(category);
     setIsEditModalOpen(true);
   };
 
   const handleUpdateCategory = async (newCategoryName) => {
-    if (!newCategoryName || newCategoryName.trim() === '' || newCategoryName === currentCategory) {
+    if (!newCategoryName || newCategoryName.trim() === '' || !currentCategory) {
       setIsEditModalOpen(false);
       return;
     }
     
     // Call the parent component's update function
-    const success = await onUpdateCategory(currentCategory, newCategoryName);
+    const success = await onUpdateCategory(currentCategory.id, newCategoryName);
     
     if (success) {
       setIsEditModalOpen(false);
-      setCurrentCategory("");
+      setCurrentCategory(null);
     }
   };
 
   const handleDeleteClick = (category) => {
     // Skip "All categories" - it shouldn't be deletable
-    if (category === "All categories") return;
+    if (category.id === 'all') return;
     
     setCategoryToDelete(category);
     setShowDeleteConfirm(true);
@@ -77,7 +77,7 @@ const CategoriesManagement = ({
     }
     
     // Call the parent component's delete function
-    const success = await onDeleteCategory(categoryToDelete);
+    const success = await onDeleteCategory(categoryToDelete.id);
     
     if (success) {
       setShowDeleteConfirm(false);
@@ -114,17 +114,17 @@ const CategoriesManagement = ({
         </div>
       )}
       
-      {categories.map((category, index) => (
+      {categories.map((category) => (
         <div 
-          key={index}
+          key={category.id}
           className={`flex justify-between items-center py-3 px-4 rounded-md mb-2 ${
-            selectedCategory === category ? "bg-gray-300" : "bg-white hover:bg-gray-50"
+            selectedCategory.id === category.id ? "bg-gray-300" : "bg-white hover:bg-gray-50"
           }`}
           onClick={() => handleCategorySelect(category)}
           style={{ cursor: 'pointer' }}
         >
-          <span>{category}</span>
-          {category !== "All categories" && (
+          <span>{category.name}</span>
+          {category.id !== 'all' && (
             <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => handleEditClick(category)}
@@ -188,7 +188,7 @@ const CategoriesManagement = ({
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleUpdateCategory}
-        initialValue={currentCategory}
+        initialValue={currentCategory ? currentCategory.name : ""}
         title="Edit Category"
         buttonText="Update"
         isLoading={isLoading}
@@ -200,7 +200,7 @@ const CategoriesManagement = ({
           <div className="bg-white rounded-md p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
             <p className="mb-6">
-              Are you sure you want to delete the category "{categoryToDelete}"? 
+              Are you sure you want to delete the category "{categoryToDelete?.name}"? 
               This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-4">

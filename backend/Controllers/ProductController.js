@@ -1,12 +1,12 @@
 const Product = require('../Models/ProductModel');
 
-// Get all products with optional search and category filter
+// Get all products
 exports.getAllProducts = async (req, res) => {
   try {
     const search = req.query.search || '';
-    const category = req.query.category || '';
+    const categoryId = req.query.categoryId || '';
     
-    const products = await Product.findAll(search, category);
+    const products = await Product.findAll(search, categoryId);
     
     res.status(200).json({
       status: 'success',
@@ -63,7 +63,7 @@ exports.getCategories = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error in getCategories:", error);
+    console.error("Detailed error in getCategories:", error.stack);
     res.status(500).json({
       status: 'error',
       message: error.message || 'Internal server error'
@@ -74,8 +74,7 @@ exports.getCategories = async (req, res) => {
 // Create a new product
 exports.createProduct = async (req, res) => {
   try {
-    // Log the incoming request data for debugging
-    console.log("Received product data:", req.body);
+    console.log("Creating product with data:", req.body);
     
     const newProduct = await Product.create(req.body);
     
@@ -88,12 +87,7 @@ exports.createProduct = async (req, res) => {
   } catch (error) {
     console.error("Error in createProduct:", error);
     
-    // Check if it's a validation error
-    if (
-      error.message.includes('required') ||
-      error.message.includes('missing') ||
-      error.message.includes('not found')
-    ) {
+    if (error.message.includes('required') || error.message.includes('not found')) {
       return res.status(400).json({
         status: 'fail',
         message: error.message
@@ -110,7 +104,6 @@ exports.createProduct = async (req, res) => {
 // Update a product
 exports.updateProduct = async (req, res) => {
   try {
-    // Log the incoming request data for debugging
     console.log("Updating product with ID:", req.params.id);
     console.log("Update data:", req.body);
     
@@ -125,7 +118,6 @@ exports.updateProduct = async (req, res) => {
   } catch (error) {
     console.error("Error in updateProduct:", error);
     
-    // Check if product not found
     if (error.message.includes('not found')) {
       return res.status(404).json({
         status: 'fail',
@@ -133,12 +125,7 @@ exports.updateProduct = async (req, res) => {
       });
     }
     
-    // Check if it's a validation error
-    if (
-      error.message.includes('required') ||
-      error.message.includes('missing') ||
-      error.message.includes('Invalid')
-    ) {
+    if (error.message.includes('required') || error.message.includes('Invalid')) {
       return res.status(400).json({
         status: 'fail',
         message: error.message
@@ -166,7 +153,6 @@ exports.deleteProduct = async (req, res) => {
   } catch (error) {
     console.error("Error in deleteProduct:", error);
     
-    // Check if product not found
     if (error.message.includes('not found')) {
       return res.status(404).json({
         status: 'fail',
@@ -174,7 +160,6 @@ exports.deleteProduct = async (req, res) => {
       });
     }
     
-    // Check if product has associated records
     if (error.message.includes('associated')) {
       return res.status(400).json({
         status: 'fail',
@@ -208,7 +193,7 @@ exports.addCategory = async (req, res) => {
     res.status(201).json({
       status: 'success',
       data: {
-        category: result.category
+        category: result
       }
     });
   } catch (error) {
@@ -228,7 +213,7 @@ exports.addCategory = async (req, res) => {
   }
 };
 
-// Update a category
+// Update a category - FIXED
 exports.updateCategory = async (req, res) => {
   try {
     const { oldCategory, newCategory } = req.body;
@@ -242,19 +227,19 @@ exports.updateCategory = async (req, res) => {
     
     console.log("Updating category from", oldCategory, "to", newCategory);
     
+    // Call the updateCategory method specifically
     const result = await Product.updateCategory(oldCategory, newCategory);
     
     res.status(200).json({
       status: 'success',
       data: {
-        oldCategory: result.oldCategory,
-        newCategory: result.newCategory
+        category: result
       }
     });
   } catch (error) {
     console.error("Error in updateCategory:", error);
     
-    if (error.message.includes('already exists')) {
+    if (error.message.includes('already exists') || error.message.includes('not found')) {
       return res.status(400).json({
         status: 'fail',
         message: error.message
@@ -287,13 +272,13 @@ exports.deleteCategory = async (req, res) => {
     res.status(200).json({
       status: 'success',
       data: {
-        category: result.category
+        category: result
       }
     });
   } catch (error) {
     console.error("Error in deleteCategory:", error);
     
-    if (error.message.includes('in use')) {
+    if (error.message.includes('in use') || error.message.includes('not found')) {
       return res.status(400).json({
         status: 'fail',
         message: error.message

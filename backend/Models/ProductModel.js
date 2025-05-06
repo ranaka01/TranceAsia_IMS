@@ -2,58 +2,62 @@ const db = require('../db');
 
 class Product {
   // Get all products with optional search and category filter
-  static async findAll(search = '', category = '') {
-    let query = `
-      SELECT 
-        p.Product_ID as id, 
-        p.Title as title, 
-        p.Category as category, 
-        p.Warranty as warranty,
-        i.Quantity as quantity,
-        i.RetailPrice as retailPrice,
-        o.SupplyPrice as supplyPrice,
-        s.Supplier_ID as supplierId,
-        s.Name as supplier
-      FROM 
-        product p
-      LEFT JOIN 
-        inventory i ON p.Product_ID = i.Product_ID
-      LEFT JOIN 
-        \`order\` o ON p.Product_ID = o.Product_ID
-      LEFT JOIN 
-        supplier s ON p.Supplier_ID = s.Supplier_ID
-    `;
-    
-    let params = [];
-    let conditions = [];
-    
-    // Add search functionality if search parameter is provided
-    if (search) {
-      conditions.push(`(p.Title LIKE ? OR p.Product_ID LIKE ?)`);
-      params.push(`%${search}%`, `%${search}%`);
-    }
-    
-    // Add category filter if category parameter is provided
-    if (category && category !== 'All categories') {
-      conditions.push(`p.Category = ?`);
-      params.push(category);
-    }
-    
-    // Add conditions to query if any
-    if (conditions.length > 0) {
-      query += ` WHERE ${conditions.join(' AND ')}`;
-    }
-    
-    query += ' ORDER BY p.Title ASC';
-    
+  static async findAll(search = '', categoryId = '') {
     try {
+      let query = `
+        SELECT 
+          p.Product_ID as id, 
+          p.Title as title, 
+          c.Category_ID as categoryId,
+          c.Name as category, 
+          p.Warranty as warranty,
+          i.Quantity as quantity,
+          i.RetailPrice as retailPrice,
+          o.SupplyPrice as supplyPrice,
+          s.Supplier_ID as supplierId,
+          s.Name as supplier
+        FROM 
+          product p
+        LEFT JOIN 
+          category c ON p.Category_ID = c.Category_ID
+        LEFT JOIN 
+          inventory i ON p.Product_ID = i.Product_ID
+        LEFT JOIN 
+          \`order\` o ON p.Product_ID = o.Product_ID
+        LEFT JOIN 
+          supplier s ON p.Supplier_ID = s.Supplier_ID
+      `;
+      
+      let params = [];
+      let conditions = [];
+      
+      // Add search functionality if search parameter is provided
+      if (search) {
+        conditions.push(`(p.Title LIKE ? OR p.Product_ID LIKE ?)`);
+        params.push(`%${search}%`, `%${search}%`);
+      }
+      
+      // Add category filter if categoryId parameter is provided
+      if (categoryId && categoryId !== '' && categoryId !== 'all') {
+        conditions.push(`p.Category_ID = ?`);
+        params.push(categoryId);
+      }
+      
+      // Add conditions to query if any
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+      
+      query += ' ORDER BY p.Title ASC';
+      
       const [rows] = await db.query(query, params);
       
       // Transform data to match frontend expectations
       return rows.map(row => ({
         id: row.id.toString(),
         title: row.title,
-        category: row.category,
+        categoryId: row.categoryId,
+        category: row.category || "Uncategorized", // Provide fallback for NULL categories
         warranty: row.warranty ? parseInt(row.warranty) : 0,
         quantity: row.quantity ? parseInt(row.quantity) : 0,
         supplyPrice: row.supplyPrice ? parseFloat(row.supplyPrice) : 0,
@@ -62,6 +66,7 @@ class Product {
         supplier: row.supplier
       }));
     } catch (error) {
+      console.error(`Error fetching products: ${error.message}`);
       throw new Error(`Error fetching products: ${error.message}`);
     }
   }
@@ -73,7 +78,8 @@ class Product {
         `SELECT 
           p.Product_ID as id, 
           p.Title as title, 
-          p.Category as category, 
+          c.Category_ID as categoryId,
+          c.Name as category, 
           p.Warranty as warranty,
           i.Quantity as quantity,
           i.RetailPrice as retailPrice,
@@ -82,6 +88,8 @@ class Product {
           s.Name as supplier
         FROM 
           product p
+        LEFT JOIN 
+          category c ON p.Category_ID = c.Category_ID
         LEFT JOIN 
           inventory i ON p.Product_ID = i.Product_ID
         LEFT JOIN 
@@ -101,7 +109,8 @@ class Product {
       return {
         id: row.id.toString(),
         title: row.title,
-        category: row.category,
+        categoryId: row.categoryId,
+        category: row.category || "Uncategorized", // Provide fallback for NULL categories
         warranty: row.warranty ? parseInt(row.warranty) : 0,
         quantity: row.quantity ? parseInt(row.quantity) : 0,
         supplyPrice: row.supplyPrice ? parseFloat(row.supplyPrice) : 0,
@@ -110,6 +119,7 @@ class Product {
         supplier: row.supplier
       };
     } catch (error) {
+      console.error(`Error fetching product: ${error.message}`);
       throw new Error(`Error fetching product: ${error.message}`);
     }
   }
@@ -117,18 +127,155 @@ class Product {
   // Get all product categories
   static async getCategories() {
     try {
-      const [rows] = await db.query(
-        `SELECT DISTINCT Category as category FROM product WHERE Category IS NOT NULL AND Category != ''`
+      // First check if the category table has any data
+      const [categoryCount] = await db.query(
+        "SELECT COUNT(*) as count FROM category"
       );
       
-      // Always include 'All categories' as the first option
-      return ['All categories', ...rows.map(row => row.category)];
+      // If no categories exist yet, add default ones
+      if (categoryCount[0].count === 0) {
+        console.log("No categories found, adding default categories");
+        
+        const defaultCategories = [
+          'Laptop/Desktop',
+          'Hardware',
+          'Peripherals',
+          'Mobile Devices',
+          'Networking',
+          'Storage',
+          'Accessories'
+        ];
+        
+        for (const category of defaultCategories) {
+          await db.query('INSERT INTO category (Name) VALUES (?)', [category]);
+        }
+      }
+      
+      const [rows] = await db.query(
+        `SELECT Category_ID as id, Name as name FROM category ORDER BY Name ASC`
+      );
+      
+      // Transform data for frontend
+      return [
+        { id: 'all', name: 'All categories' },
+        ...rows.map(row => ({ id: row.id.toString(), name: row.name }))
+      ];
     } catch (error) {
-      throw new Error(`Error fetching categories: ${error.message}`);
+      console.error(`Error fetching categories: ${error.message}`);
+      return [{ id: 'all', name: 'All categories' }];
     }
   }
   
-  // Create a new product with inventory and supplier details
+  // Add a new category
+  static async addCategory(categoryName) {
+    try {
+      // Check if category already exists
+      const [existingCategories] = await db.query(
+        'SELECT Category_ID FROM category WHERE Name = ? LIMIT 1',
+        [categoryName]
+      );
+      
+      if (existingCategories.length > 0) {
+        throw new Error('Category already exists');
+      }
+      
+      // Insert new category
+      const [result] = await db.query(
+        'INSERT INTO category (Name) VALUES (?)',
+        [categoryName]
+      );
+      
+      return { 
+        id: result.insertId.toString(), 
+        name: categoryName 
+      };
+    } catch (error) {
+      console.error(`Error adding category: ${error.message}`);
+      throw new Error(`Error adding category: ${error.message}`);
+    }
+  }
+  
+  // Update a category name
+  static async updateCategory(oldCategoryName, newCategoryName) {
+    try {
+      // Find category ID from old name
+      const [category] = await db.query(
+        'SELECT Category_ID FROM category WHERE Name = ? LIMIT 1',
+        [oldCategoryName]
+      );
+      
+      if (category.length === 0) {
+        throw new Error('Category not found');
+      }
+      
+      const categoryId = category[0].Category_ID;
+      
+      // Check if the new name already exists for another category
+      const [existingCategory] = await db.query(
+        'SELECT Category_ID FROM category WHERE Name = ? AND Category_ID != ? LIMIT 1',
+        [newCategoryName, categoryId]
+      );
+      
+      if (existingCategory.length > 0) {
+        throw new Error('Category name already exists');
+      }
+      
+      // Update category name
+      await db.query(
+        'UPDATE category SET Name = ? WHERE Category_ID = ?',
+        [newCategoryName, categoryId]
+      );
+      
+      return { 
+        id: categoryId.toString(), 
+        oldName: oldCategoryName, 
+        newName: newCategoryName 
+      };
+    } catch (error) {
+      console.error(`Error updating category: ${error.message}`);
+      throw new Error(`Error updating category: ${error.message}`);
+    }
+  }
+  
+  // Delete a category
+  static async deleteCategory(categoryName) {
+    try {
+      // Find category ID from name
+      const [category] = await db.query(
+        'SELECT Category_ID FROM category WHERE Name = ? LIMIT 1',
+        [categoryName]
+      );
+      
+      if (category.length === 0) {
+        throw new Error('Category not found');
+      }
+      
+      const categoryId = category[0].Category_ID;
+      
+      // Check if products are using this category
+      const [productCount] = await db.query(
+        'SELECT COUNT(*) as count FROM product WHERE Category_ID = ?',
+        [categoryId]
+      );
+      
+      if (productCount[0].count > 0) {
+        throw new Error('Cannot delete category that is in use by products');
+      }
+      
+      // Delete the category
+      await db.query('DELETE FROM category WHERE Category_ID = ?', [categoryId]);
+      
+      return { 
+        id: categoryId.toString(), 
+        name: categoryName 
+      };
+    } catch (error) {
+      console.error(`Error deleting category: ${error.message}`);
+      throw new Error(`Error deleting category: ${error.message}`);
+    }
+  }
+  
+  // Create a new product
   static async create(productData) {
     try {
       const { title, category, warranty, quantity, supplyPrice, retailPrice, supplier } = productData;
@@ -143,6 +290,28 @@ class Product {
       await connection.beginTransaction();
       
       try {
+        // Get category ID
+        let categoryId = category;
+        
+        // If category is a string name rather than an ID, look up or create the category
+        if (isNaN(parseInt(category))) {
+          const [categoryResult] = await connection.query(
+            'SELECT Category_ID FROM category WHERE Name = ? LIMIT 1',
+            [category]
+          );
+          
+          if (categoryResult.length === 0) {
+            // If category doesn't exist, create it
+            const [newCategory] = await connection.query(
+              'INSERT INTO category (Name) VALUES (?)',
+              [category]
+            );
+            categoryId = newCategory.insertId;
+          } else {
+            categoryId = categoryResult[0].Category_ID;
+          }
+        }
+        
         // Get supplier ID
         const [supplierResult] = await connection.query(
           'SELECT Supplier_ID FROM supplier WHERE Name = ?',
@@ -157,18 +326,18 @@ class Product {
         
         // Insert into product table
         const [productResult] = await connection.query(
-          `INSERT INTO product (Title, Category, Warranty, Supplier_ID)
+          `INSERT INTO product (Title, Category_ID, Warranty, Supplier_ID)
            VALUES (?, ?, ?, ?)`,
-          [title, category, warranty || null, supplierId]
+          [title, categoryId, warranty || null, supplierId]
         );
         
         const productId = productResult.insertId;
         
         // Insert into inventory table
         await connection.query(
-          `INSERT INTO inventory (Category, Quantity, RetailPrice, Product_ID)
+          `INSERT INTO inventory (Category_ID, Quantity, RetailPrice, Product_ID)
            VALUES (?, ?, ?, ?)`,
-          [category, quantity || 0, retailPrice, productId]
+          [categoryId, quantity || 0, retailPrice, productId]
         );
         
         // Insert into order table for supply price
@@ -191,11 +360,12 @@ class Product {
         throw error;
       }
     } catch (error) {
+      console.error(`Error creating product: ${error.message}`);
       throw new Error(`Error creating product: ${error.message}`);
     }
   }
   
-  // Update a product and its associated details
+  // Update a product
   static async update(id, productData) {
     try {
       // Check if product exists
@@ -216,7 +386,29 @@ class Product {
       await connection.beginTransaction();
       
       try {
-        // Get supplier ID if supplier name is provided
+        // Get category ID
+        let categoryId = category;
+        
+        // If category is a string name rather than an ID, look up or create the category
+        if (isNaN(parseInt(category))) {
+          const [categoryResult] = await connection.query(
+            'SELECT Category_ID FROM category WHERE Name = ? LIMIT 1',
+            [category]
+          );
+          
+          if (categoryResult.length === 0) {
+            // If category doesn't exist, create it
+            const [newCategory] = await connection.query(
+              'INSERT INTO category (Name) VALUES (?)',
+              [category]
+            );
+            categoryId = newCategory.insertId;
+          } else {
+            categoryId = categoryResult[0].Category_ID;
+          }
+        }
+        
+        // Get supplier ID
         let supplierId = product.supplierId;
         
         if (supplier !== product.supplier) {
@@ -235,9 +427,9 @@ class Product {
         // Update product table
         await connection.query(
           `UPDATE product 
-           SET Title = ?, Category = ?, Warranty = ?, Supplier_ID = ?
+           SET Title = ?, Category_ID = ?, Warranty = ?, Supplier_ID = ?
            WHERE Product_ID = ?`,
-          [title, category, warranty || null, supplierId, id]
+          [title, categoryId, warranty || null, supplierId, id]
         );
         
         // Update inventory table
@@ -249,15 +441,15 @@ class Product {
         if (inventoryResult.length > 0) {
           await connection.query(
             `UPDATE inventory 
-             SET Category = ?, Quantity = ?, RetailPrice = ?
+             SET Category_ID = ?, Quantity = ?, RetailPrice = ?
              WHERE Product_ID = ?`,
-            [category, quantity || 0, retailPrice, id]
+            [categoryId, quantity || 0, retailPrice, id]
           );
         } else {
           await connection.query(
-            `INSERT INTO inventory (Category, Quantity, RetailPrice, Product_ID)
+            `INSERT INTO inventory (Category_ID, Quantity, RetailPrice, Product_ID)
              VALUES (?, ?, ?, ?)`,
-            [category, quantity || 0, retailPrice, id]
+            [categoryId, quantity || 0, retailPrice, id]
           );
         }
         
@@ -293,6 +485,7 @@ class Product {
         throw error;
       }
     } catch (error) {
+      console.error(`Error updating product: ${error.message}`);
       throw new Error(`Error updating product: ${error.message}`);
     }
   }
@@ -340,94 +533,8 @@ class Product {
         throw error;
       }
     } catch (error) {
+      console.error(`Error deleting product: ${error.message}`);
       throw new Error(`Error deleting product: ${error.message}`);
-    }
-  }
-  
-  // Add a new category
-  static async addCategory(category) {
-    try {
-      // Check if category already exists
-      const [existingCategories] = await db.query(
-        'SELECT Category FROM product WHERE Category = ? LIMIT 1',
-        [category]
-      );
-      
-      if (existingCategories.length > 0) {
-        throw new Error('Category already exists');
-      }
-      
-      // We don't actually create a category separately in the database
-      // Categories are just stored in the product table
-      // So we'll return success
-      return { category };
-    } catch (error) {
-      throw new Error(`Error adding category: ${error.message}`);
-    }
-  }
-  
-  // Update a category name (updates all products with that category)
-  static async updateCategory(oldCategory, newCategory) {
-    try {
-      // Check if new category name already exists
-      if (oldCategory !== newCategory) {
-        const [existingCategories] = await db.query(
-          'SELECT Category FROM product WHERE Category = ? LIMIT 1',
-          [newCategory]
-        );
-        
-        if (existingCategories.length > 0) {
-          throw new Error('Category already exists');
-        }
-      }
-      
-      // Start a transaction
-      const connection = await db.getConnection();
-      await connection.beginTransaction();
-      
-      try {
-        // Update category in product table
-        await connection.query(
-          'UPDATE product SET Category = ? WHERE Category = ?',
-          [newCategory, oldCategory]
-        );
-        
-        // Update category in inventory table
-        await connection.query(
-          'UPDATE inventory SET Category = ? WHERE Category = ?',
-          [newCategory, oldCategory]
-        );
-        
-        await connection.commit();
-        connection.release();
-        
-        return { oldCategory, newCategory };
-      } catch (error) {
-        await connection.rollback();
-        connection.release();
-        throw error;
-      }
-    } catch (error) {
-      throw new Error(`Error updating category: ${error.message}`);
-    }
-  }
-  
-  // Delete a category (removes category from all products with that category)
-  static async deleteCategory(category) {
-    try {
-      // Check if products are using this category
-      const [productCount] = await db.query(
-        'SELECT COUNT(*) as count FROM product WHERE Category = ?',
-        [category]
-      );
-      
-      if (productCount[0].count > 0) {
-        throw new Error('Cannot delete category that is in use by products');
-      }
-      
-      return { category };
-    } catch (error) {
-      throw new Error(`Error deleting category: ${error.message}`);
     }
   }
 }
