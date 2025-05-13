@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import Button from "../../components/UI/Button";
 import SearchInput from "../../components/UI/SearchInput";
 import AddSupplierModal from "./AddSupplierModal";
-import API from "../../utils/api"; // Import your configured API instance instead of axios
+import API from "../../utils/api";
 
 const Suppliers = () => {
-  // Sample product categories - could also come from the backend
+  // Sample product categories
   const productCategories = [
     "Laptop/Desktop",
     "Hardware",
@@ -16,7 +16,7 @@ const Suppliers = () => {
     "Accessories",
   ];
 
-  // State management - ensure arrays are initialized properly
+  // State management
   const [suppliers, setSuppliers] = useState([]);
   const [filteredSuppliers, setFilteredSuppliers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -27,31 +27,26 @@ const Suppliers = () => {
   const [supplierToDelete, setSupplierToDelete] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false); // New state for form submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // API URL - replace with environment variable
-  const API_URL = "/suppliers"; // No need for full URL, it's in the baseURL of your API instance
+  // API URL
+  const API_URL = "/suppliers";
 
-  // Enhanced validation function to check empty fields and Sri Lankan mobile number
+  // Mobile number validation (Sri Lankan)
   const validateMobileNumber = (phone) => {
     if (!phone || phone.trim() === "") {
       return false;
     }
 
-    // Remove spaces for validation
     const cleanPhone = phone.replace(/\s+/g, "");
-
-    // Sri Lankan mobile numbers:
-    // 1. Start with '07' followed by 8 more digits
-    // 2. Or international format +94 7X XXXXXXX
     const localPattern = /^07[0-9]{8}$/;
     const intlPattern = /^\+947[0-9]{8}$/;
 
     return localPattern.test(cleanPhone) || intlPattern.test(cleanPhone);
   };
 
-  // Enhanced validation function to check empty fields and email format
+  // Email validation
   const validateEmail = (email) => {
     if (!email || email.trim() === "") {
       return false;
@@ -67,17 +62,19 @@ const Suppliers = () => {
     setError(null);
     try {
       const response = await API.get(API_URL);
-
-      // Fixed: Extract suppliers from the nested structure
-      // Check if response.data.data exists and contains suppliers
       const data = response.data?.data?.suppliers || [];
-
-      setSuppliers(data);
-      setFilteredSuppliers(data);
+      
+      // Format date for display if needed
+      const formattedData = data.map(supplier => ({
+        ...supplier,
+        formattedDate: supplier.date ? new Date(supplier.date).toLocaleDateString() : 'N/A'
+      }));
+      
+      setSuppliers(formattedData);
+      setFilteredSuppliers(formattedData);
     } catch (err) {
       console.error("Error fetching suppliers:", err);
       setError("Failed to load suppliers. Please try again later.");
-      // Initialize with empty arrays on error to prevent map errors
       setSuppliers([]);
       setFilteredSuppliers([]);
     } finally {
@@ -92,7 +89,6 @@ const Suppliers = () => {
 
   // Function to perform the search filtering
   const performSearch = (query) => {
-    // Guard against suppliers not being an array
     if (!Array.isArray(suppliers)) {
       setFilteredSuppliers([]);
       return;
@@ -104,11 +100,10 @@ const Suppliers = () => {
       const filtered = suppliers.filter(
         (supplier) =>
           supplier.name?.toLowerCase().includes(query.toLowerCase()) ||
+          supplier.shop_name?.toLowerCase().includes(query.toLowerCase()) ||
           (supplier.phone && supplier.phone.includes(query)) ||
-          (supplier.email &&
-            supplier.email.toLowerCase().includes(query.toLowerCase())) ||
-          (supplier.category &&
-            supplier.category.toLowerCase().includes(query.toLowerCase()))
+          (supplier.email && supplier.email.toLowerCase().includes(query.toLowerCase())) ||
+          (supplier.address && supplier.address.toLowerCase().includes(query.toLowerCase()))
       );
       setFilteredSuppliers(filtered);
     }
@@ -117,16 +112,14 @@ const Suppliers = () => {
   // Update filtered suppliers when suppliers list changes OR search query changes
   useEffect(() => {
     performSearch(searchQuery);
-  }, [suppliers, searchQuery]); // Added searchQuery as a dependency
+  }, [suppliers, searchQuery]);
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
-    // Search will be performed by the useEffect
   };
 
   const handleSearch = () => {
-    // Explicitly perform search (for search button click)
     performSearch(searchQuery);
   };
 
@@ -144,24 +137,23 @@ const Suppliers = () => {
     // Validate data
     const errors = {};
 
-    // Check for empty fields first
+    // Basic validation checks
     if (!supplierData.name || supplierData.name.trim() === "") {
       errors.name = "Supplier name is required";
     } else if (supplierData.name.trim().length < 3) {
       errors.name = "Supplier name must be at least 3 characters";
     }
 
-    if (!supplierData.category || supplierData.category.trim() === "") {
-      errors.category = "Category is required";
+    if (!supplierData.shop_name || supplierData.shop_name.trim() === "") {
+      errors.shop_name = "Shop name is required";
     }
 
     if (!supplierData.phone || supplierData.phone.trim() === "") {
       errors.phone = "Phone number is required";
     } else if (!validateMobileNumber(supplierData.phone)) {
-      errors.phone =
-        "Please enter a valid Sri Lankan mobile number (e.g., 071 1234567)";
+      errors.phone = "Please enter a valid Sri Lankan mobile number (e.g., 071 1234567)";
     } else {
-      // Check for duplicate phone number
+      // Check for duplicate phone
       const isDuplicatePhone = suppliers.some(
         supplier => supplier.phone === supplierData.phone
       );
@@ -188,14 +180,6 @@ const Suppliers = () => {
       errors.address = "Address is required";
     } else if (supplierData.address.trim().length < 5) {
       errors.address = "Please enter a complete address";
-    } else {
-      // Check for duplicate address (case insensitive comparison)
-      const isDuplicateAddress = suppliers.some(
-        supplier => supplier.address && supplier.address.toLowerCase() === supplierData.address.toLowerCase()
-      );
-      if (isDuplicateAddress) {
-        errors.address = "This address is already registered with another supplier";
-      }
     }
 
     // If there are validation errors, don't save
@@ -204,12 +188,19 @@ const Suppliers = () => {
       return;
     }
 
-    setIsSubmitting(true); // Set submitting state to true
+    // Add current date
+    const formattedData = {
+      ...supplierData,
+      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+      is_active: true
+    };
+
+    setIsSubmitting(true);
     try {
       // Send POST request to add new supplier
-      const response = await API.post(API_URL, supplierData);
+      const response = await API.post(API_URL, formattedData);
 
-      // Add the new supplier to the local state - adjust based on your API response
+      // Add the new supplier to the local state
       let newSupplier;
       if (response.data?.data?.supplier) {
         newSupplier = response.data.data.supplier;
@@ -217,10 +208,13 @@ const Suppliers = () => {
         newSupplier = response.data;
       }
 
-      // Important: Update suppliers state with the new supplier
+      // Update suppliers state with the new supplier
       if (newSupplier) {
-        setSuppliers(prevSuppliers => [...prevSuppliers, newSupplier]);
-        // The useEffect will handle updating filteredSuppliers automatically
+        const formattedSupplier = {
+          ...newSupplier,
+          formattedDate: new Date(newSupplier.date).toLocaleDateString()
+        };
+        setSuppliers(prevSuppliers => [...prevSuppliers, formattedSupplier]);
       }
 
       // Close the modal and reset validation errors
@@ -229,11 +223,11 @@ const Suppliers = () => {
     } catch (err) {
       console.error("Error adding supplier:", err);
       
-      // Handle API error responses - check if it's a duplicate entry error
+      // Handle API error responses
       if (err.response?.data?.errors) {
         const apiErrors = err.response.data.errors;
         
-        // Map API errors to our form fields
+        // Map API errors to form fields
         const fieldErrors = {};
         if (apiErrors.email) fieldErrors.email = "This email is already registered";
         if (apiErrors.phone) fieldErrors.phone = "This phone number is already registered";
@@ -257,7 +251,7 @@ const Suppliers = () => {
         });
       }
     } finally {
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false);
     }
   };
 
@@ -277,24 +271,23 @@ const Suppliers = () => {
     // Validate data
     const errors = {};
 
-    // Check for empty fields first
+    // Basic validation checks
     if (!updatedData.name || updatedData.name.trim() === "") {
       errors.name = "Supplier name is required";
     } else if (updatedData.name.trim().length < 3) {
       errors.name = "Supplier name must be at least 3 characters";
     }
 
-    if (!updatedData.category || updatedData.category.trim() === "") {
-      errors.category = "Category is required";
+    if (!updatedData.shop_name || updatedData.shop_name.trim() === "") {
+      errors.shop_name = "Shop name is required";
     }
 
     if (!updatedData.phone || updatedData.phone.trim() === "") {
       errors.phone = "Phone number is required";
     } else if (!validateMobileNumber(updatedData.phone)) {
-      errors.phone =
-        "Please enter a valid Sri Lankan mobile number (e.g., 071 1234567)";
+      errors.phone = "Please enter a valid Sri Lankan mobile number (e.g., 071 1234567)";
     } else {
-      // Check for duplicate phone number (excluding current supplier)
+      // Check for duplicate phone (excluding current supplier)
       const isDuplicatePhone = suppliers.some(
         supplier => supplier.id !== currentSupplier.id && supplier.phone === updatedData.phone
       );
@@ -322,15 +315,6 @@ const Suppliers = () => {
       errors.address = "Address is required";
     } else if (updatedData.address.trim().length < 5) {
       errors.address = "Please enter a complete address";
-    } else {
-      // Check for duplicate address (excluding current supplier)
-      const isDuplicateAddress = suppliers.some(
-        supplier => supplier.id !== currentSupplier.id && 
-          supplier.address && supplier.address.toLowerCase() === updatedData.address.toLowerCase()
-      );
-      if (isDuplicateAddress) {
-        errors.address = "This address is already registered with another supplier";
-      }
     }
 
     // If there are validation errors, don't update
@@ -339,31 +323,34 @@ const Suppliers = () => {
       return;
     }
 
-    setIsSubmitting(true); // Set submitting state to true
+    setIsSubmitting(true);
     try {
-      // Send PATCH request to update supplier (backend uses PATCH not PUT)
+      // Send PATCH request to update supplier
       await API.patch(`${API_URL}/${currentSupplier.id}`, updatedData);
 
       // Update local state
       const updatedSuppliers = suppliers.map((supplier) =>
         supplier.id === currentSupplier.id
-          ? { ...supplier, ...updatedData }
+          ? { 
+              ...supplier, 
+              ...updatedData,
+              formattedDate: supplier.formattedDate // Keep the formatted date
+            }
           : supplier
       );
 
       setSuppliers(updatedSuppliers);
-      // The useEffect will handle updating filteredSuppliers
       setIsEditModalOpen(false);
       setCurrentSupplier(null);
       setValidationErrors({});
     } catch (err) {
       console.error("Error updating supplier:", err);
       
-      // Handle API error responses - check if it's a duplicate entry error
+      // Handle API error responses
       if (err.response?.data?.errors) {
         const apiErrors = err.response.data.errors;
         
-        // Map API errors to our form fields
+        // Map API errors to form fields
         const fieldErrors = {};
         if (apiErrors.email) fieldErrors.email = "This email is already registered";
         if (apiErrors.phone) fieldErrors.phone = "This phone number is already registered";
@@ -387,7 +374,29 @@ const Suppliers = () => {
         });
       }
     } finally {
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (supplier) => {
+    setIsSubmitting(true);
+    try {
+      const updatedStatus = { is_active: !supplier.is_active };
+      await API.patch(`${API_URL}/${supplier.id}`, updatedStatus);
+
+      // Update local state
+      const updatedSuppliers = suppliers.map((s) =>
+        s.id === supplier.id
+          ? { ...s, is_active: !s.is_active }
+          : s
+      );
+
+      setSuppliers(updatedSuppliers);
+    } catch (err) {
+      console.error("Error toggling supplier status:", err);
+      // Show error notification if needed
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -402,7 +411,7 @@ const Suppliers = () => {
       return;
     }
 
-    setIsSubmitting(true); // Set submitting state to true
+    setIsSubmitting(true);
     try {
       // Send DELETE request to remove supplier
       await API.delete(`${API_URL}/${supplierToDelete.id}`);
@@ -418,7 +427,7 @@ const Suppliers = () => {
     } finally {
       setShowDeleteConfirm(false);
       setSupplierToDelete(null);
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false);
     }
   };
 
@@ -439,7 +448,7 @@ const Suppliers = () => {
       <div className="mb-4 flex">
         <div className="flex-grow">
           <SearchInput
-            placeholder="Search by name, Mobile no"
+            placeholder="Search by name, shop, phone or email"
             value={searchQuery}
             onChange={handleSearchChange}
             onSearch={handleSearch}
@@ -471,12 +480,14 @@ const Suppliers = () => {
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-gray-200">
-                <th className="py-3 px-4 text-left">Supplier ID</th>
+                <th className="py-3 px-4 text-left">ID</th>
                 <th className="py-3 px-4 text-left">Name</th>
-                <th className="py-3 px-4 text-left">Product Category</th>
+                <th className="py-3 px-4 text-left">Shop Name</th>
                 <th className="py-3 px-4 text-left">Phone</th>
                 <th className="py-3 px-4 text-left">Email</th>
                 <th className="py-3 px-4 text-left">Address</th>
+                <th className="py-3 px-4 text-center">Date</th>
+                <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
@@ -489,7 +500,7 @@ const Suppliers = () => {
                   >
                     <td className="py-3 px-4">{supplier.id}</td>
                     <td className="py-3 px-4">{supplier.name || ""}</td>
-                    <td className="py-3 px-4">{supplier.category || ""}</td>
+                    <td className="py-3 px-4">{supplier.shop_name || ""}</td>
                     <td className="py-3 px-4">{supplier.phone || ""}</td>
                     <td className="py-3 px-4">
                       <div className={`${supplier.email && supplier.email.length > 25 ? 'text-sm' : ''} truncate max-w-[200px]`} title={supplier.email || ""}>
@@ -497,15 +508,28 @@ const Suppliers = () => {
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <div className={`${supplier.address && supplier.address.length > 30 ? 'text-sm' : ''} truncate max-w-[250px]`} title={supplier.address || ""}>
+                      <div className={`${supplier.address && supplier.address.length > 30 ? 'text-sm' : ''} truncate max-w-[200px]`} title={supplier.address || ""}>
                         {supplier.address || ""}
                       </div>
                     </td>
+                    <td className="py-3 px-4 text-center">{supplier.formattedDate || supplier.date || "N/A"}</td>
                     <td className="py-3 px-4 text-center">
+                      <span 
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          supplier.is_active 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {supplier.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
                       <div className="flex justify-center space-x-2">
                         <button
                           onClick={() => handleEditSupplier(supplier)}
                           className="p-1 text-blue-600 hover:text-blue-800"
+                          title="Edit"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -523,8 +547,50 @@ const Suppliers = () => {
                           </svg>
                         </button>
                         <button
+                          onClick={() => handleToggleStatus(supplier)}
+                          className={`p-1 ${
+                            supplier.is_active 
+                              ? 'text-yellow-600 hover:text-yellow-800' 
+                              : 'text-green-600 hover:text-green-800'
+                          }`}
+                          title={supplier.is_active ? 'Deactivate' : 'Activate'}
+                        >
+                          {supplier.is_active ? (
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              className="h-5 w-5" 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                            >
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" 
+                              />
+                            </svg>
+                          ) : (
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              className="h-5 w-5" 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                            >
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2} 
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" 
+                              />
+                            </svg>
+                          )}
+                        </button>
+                        <button
                           onClick={() => handleDeleteClick(supplier)}
                           className="p-1 text-red-600 hover:text-red-800"
+                          title="Delete"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -547,7 +613,7 @@ const Suppliers = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="py-4 px-4 text-center text-gray-500">
+                  <td colSpan="9" className="py-4 px-4 text-center text-gray-500">
                     No suppliers found matching your search criteria
                   </td>
                 </tr>
@@ -563,32 +629,22 @@ const Suppliers = () => {
           variant="primary"
           onClick={handleAddSupplier}
           className="bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition-colors"
-          disabled={isSubmitting} // Disable when submitting
+          disabled={isSubmitting}
         >
           Add Supplier
         </Button>
       </div>
 
-      {/* Add Supplier Modal - Pass validation errors */}
-      <AddSupplierModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onSave={handleSaveSupplier}
-        categories={productCategories}
-        validationErrors={validationErrors}
-        loading={isSubmitting}
-      />
-
-      {/* Edit Supplier Modal - With validation */}
-      {isEditModalOpen && currentSupplier && (
+      {/* Add Supplier Modal */}
+      {isModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-md p-6 w-full max-w-md max-h-screen overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Edit Supplier</h2>
+              <h2 className="text-lg font-semibold">New Supplier</h2>
               <button
-                onClick={handleCloseEditModal}
+                onClick={handleCloseModal}
                 className="text-gray-500 hover:text-gray-700"
-                disabled={isSubmitting} // Disable when submitting
+                disabled={isSubmitting}
               >
                 ✕
               </button>
@@ -598,16 +654,23 @@ const Suppliers = () => {
               onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
-                const updatedData = {
+                const supplierData = {
                   name: formData.get("name"),
-                  category: formData.get("category"),
+                  shop_name: formData.get("shop_name"),
                   phone: formData.get("phone"),
                   email: formData.get("email"),
                   address: formData.get("address"),
                 };
-                handleUpdateSupplier(updatedData);
+                handleSaveSupplier(supplierData);
               }}
             >
+              {validationErrors.submit && (
+                <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                  {validationErrors.submit}
+                </div>
+              )}
+              
+              {/* Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
                   Supplier Name <span className="text-red-500">*</span>
@@ -615,8 +678,7 @@ const Suppliers = () => {
                 <input
                   type="text"
                   name="name"
-                  defaultValue={currentSupplier?.name || ""}
-                  placeholder="Enter supplier or shop name"
+                  placeholder="Enter supplier name"
                   className={`w-full px-3 py-2 border ${
                     validationErrors.name ? "border-red-500" : "border-gray-300"
                   } rounded-md`}
@@ -629,38 +691,30 @@ const Suppliers = () => {
                   </p>
                 )}
               </div>
-
+              
+              {/* Shop Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
-                  Category <span className="text-red-500">*</span>
+                  Shop Name <span className="text-red-500">*</span>
                 </label>
-                <select
-                  name="category"
-                  defaultValue={currentSupplier?.category || ""}
+                <input
+                  type="text"
+                  name="shop_name"
+                  placeholder="Enter shop name"
                   className={`w-full px-3 py-2 border ${
-                    validationErrors.category
-                      ? "border-red-500"
-                      : "border-gray-300"
-                  } rounded-md appearance-none`}
+                    validationErrors.shop_name ? "border-red-500" : "border-gray-300"
+                  } rounded-md`}
                   required
                   disabled={isSubmitting}
-                >
-                  <option value="" disabled>
-                    Select product category
-                  </option>
-                  {productCategories.map((category, index) => (
-                    <option key={index} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-                {validationErrors.category && (
+                />
+                {validationErrors.shop_name && (
                   <p className="mt-1 text-sm text-red-500">
-                    {validationErrors.category}
+                    {validationErrors.shop_name}
                   </p>
                 )}
               </div>
 
+              {/* Phone */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
                   Mobile Number <span className="text-red-500">*</span>
@@ -668,12 +722,9 @@ const Suppliers = () => {
                 <input
                   type="text"
                   name="phone"
-                  defaultValue={currentSupplier?.phone || ""}
                   placeholder="Enter supplier contact number (e.g., 071 1234567)"
                   className={`w-full px-3 py-2 border ${
-                    validationErrors.phone
-                      ? "border-red-500"
-                      : "border-gray-300"
+                    validationErrors.phone ? "border-red-500" : "border-gray-300"
                   } rounded-md`}
                   required
                   disabled={isSubmitting}
@@ -685,6 +736,7 @@ const Suppliers = () => {
                 )}
               </div>
 
+              {/* Email */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
                   Email <span className="text-red-500">*</span>
@@ -692,12 +744,9 @@ const Suppliers = () => {
                 <input
                   type="email"
                   name="email"
-                  defaultValue={currentSupplier?.email || ""}
                   placeholder="Enter supplier Email"
                   className={`w-full px-3 py-2 border ${
-                    validationErrors.email
-                      ? "border-red-500"
-                      : "border-gray-300"
+                    validationErrors.email ? "border-red-500" : "border-gray-300"
                   } rounded-md`}
                   required
                   disabled={isSubmitting}
@@ -709,6 +758,7 @@ const Suppliers = () => {
                 )}
               </div>
 
+              {/* Address */}
               <div className="mb-6">
                 <label className="block text-gray-700 mb-2">
                   Address <span className="text-red-500">*</span>
@@ -716,12 +766,9 @@ const Suppliers = () => {
                 <input
                   type="text"
                   name="address"
-                  defaultValue={currentSupplier?.address || ""}
                   placeholder="Enter supplier Address"
                   className={`w-full px-3 py-2 border ${
-                    validationErrors.address
-                      ? "border-red-500"
-                      : "border-gray-300"
+                    validationErrors.address ? "border-red-500" : "border-gray-300"
                   } rounded-md`}
                   required
                   disabled={isSubmitting}
@@ -733,12 +780,179 @@ const Suppliers = () => {
                 )}
               </div>
 
-              {validationErrors.submit && (
-                <p className="mb-4 text-sm text-red-500">
-                  {validationErrors.submit}
-                </p>
-              )}
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className={`w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors ${
+                  isSubmitting ? "opacity-70 cursor-not-allowed" : ""
+                }`}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                    Saving...
+                  </div>
+                ) : (
+                  "Save"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
+      {/* Edit Supplier Modal - With validation */}
+      {isEditModalOpen && currentSupplier && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-md p-6 w-full max-w-md max-h-screen overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">Edit Supplier</h2>
+              <button
+                onClick={handleCloseEditModal}
+                className="text-gray-500 hover:text-gray-700"
+                disabled={isSubmitting}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const updatedData = {
+                  name: formData.get("name"),
+                  shop_name: formData.get("shop_name"),
+                  phone: formData.get("phone"),
+                  email: formData.get("email"),
+                  address: formData.get("address"),
+                };
+                handleUpdateSupplier(updatedData);
+              }}
+            >
+              {validationErrors.submit && (
+                <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                  {validationErrors.submit}
+                </div>
+              )}
+              
+              {/* Name */}
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">
+                  Supplier Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  defaultValue={currentSupplier?.name || ""}
+                  placeholder="Enter supplier name"
+                  className={`w-full px-3 py-2 border ${
+                    validationErrors.name ? "border-red-500" : "border-gray-300"
+                  } rounded-md`}
+                  required
+                  disabled={isSubmitting}
+                />
+                {validationErrors.name && (
+                  <p className="mt-1 text-sm text-red-500">
+                    {validationErrors.name}
+                  </p>
+                )}
+              </div>
+              
+              {/* Shop Name */}
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">
+                  Shop Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="shop_name"
+                  defaultValue={currentSupplier?.shop_name || ""}
+                  placeholder="Enter shop name"
+                  className={`w-full px-3 py-2 border ${
+                    validationErrors.shop_name ? "border-red-500" : "border-gray-300"
+                  } rounded-md`}
+                  required
+                  disabled={isSubmitting}
+                />
+                {validationErrors.shop_name && (
+                  <p className="mt-1 text-sm text-red-500">
+                    {validationErrors.shop_name}
+                  </p>
+                )}
+              </div>
+
+              {/* Phone */}
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">
+                  Mobile Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="phone"
+                  defaultValue={currentSupplier?.phone || ""}
+                  placeholder="Enter supplier contact number (e.g., 071 1234567)"
+                  className={`w-full px-3 py-2 border ${
+                    validationErrors.phone ? "border-red-500" : "border-gray-300"
+                  } rounded-md`}
+                  required
+                  disabled={isSubmitting}
+                />
+                {validationErrors.phone && (
+                  <p className="mt-1 text-sm text-red-500">
+                    {validationErrors.phone}
+                  </p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  defaultValue={currentSupplier?.email || ""}
+                  placeholder="Enter supplier Email"
+                  className={`w-full px-3 py-2 border ${
+                    validationErrors.email ? "border-red-500" : "border-gray-300"
+                  } rounded-md`}
+                  required
+                  disabled={isSubmitting}
+                />
+                {validationErrors.email && (
+                  <p className="mt-1 text-sm text-red-500">
+                    {validationErrors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* Address */}
+              <div className="mb-6">
+                <label className="block text-gray-700 mb-2">
+                  Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="address"
+                  defaultValue={currentSupplier?.address || ""}
+                  placeholder="Enter supplier Address"
+                  className={`w-full px-3 py-2 border ${
+                    validationErrors.address ? "border-red-500" : "border-gray-300"
+                  } rounded-md`}
+                  required
+                  disabled={isSubmitting}
+                />
+                {validationErrors.address && (
+                  <p className="mt-1 text-sm text-red-500">
+                    {validationErrors.address}
+                  </p>
+                )}
+              </div>
+
+              {/* Submit Button */}
               <button
                 type="submit"
                 className={`w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors ${

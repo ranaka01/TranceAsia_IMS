@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from "react";
-import API from "../../utils/api";
 
 const AddSupplierModal = ({
   isOpen,
   onClose,
-  categories,
   validationErrors,
-  onSave, // Make sure this prop is correctly used
+  onSave,
   loading = false
 }) => {
   const [formData, setFormData] = useState({
     name: '',
-    category: '',
+    shop_name: '',
     phone: '',
     email: '',
     address: ''
@@ -25,7 +23,7 @@ const AddSupplierModal = ({
     if (isOpen) {
       setFormData({
         name: '',
-        category: '',
+        shop_name: '',
         phone: '',
         email: '',
         address: ''
@@ -81,9 +79,9 @@ const AddSupplierModal = ({
           error = "Supplier name must be at least 3 characters";
         }
         break;
-      case 'category':
+      case 'shop_name':
         if (!value || value.trim() === '') {
-          error = "Category is required";
+          error = "Shop name is required";
         }
         break;
       case 'phone':
@@ -111,11 +109,11 @@ const AddSupplierModal = ({
 
   const validateForm = () => {
     const nameValid = validateField('name', formData.name);
-    const categoryValid = validateField('category', formData.category);
+    const shopNameValid = validateField('shop_name', formData.shop_name);
     const phoneValid = validateField('phone', formData.phone);
     const emailValid = validateField('email', formData.email);
     const addressValid = validateField('address', formData.address);
-    return nameValid && categoryValid && phoneValid && emailValid && addressValid;
+    return nameValid && shopNameValid && phoneValid && emailValid && addressValid;
   };
 
   const handleChange = (e) => {
@@ -170,123 +168,131 @@ const AddSupplierModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-md p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">New Supplier</h2>
+          <h2 className="text-xl font-semibold text-gray-800">New Supplier</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 transition-colors"
             disabled={isLoading}
           >
-            ✕
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
         <form onSubmit={handleSubmit} noValidate>
           {errors.general && (
-            <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
               {errors.general}
             </div>
           )}
+          
           {/* Name */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">
+            <label className="block text-gray-700 font-medium mb-2" htmlFor="name">
               Supplier Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+              id="name"
               name="name"
               value={formData.name}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Enter supplier or shop name"
-              className={`w-full px-3 py-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+              placeholder="Enter supplier name"
+              className={`w-full px-3 py-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
               required
               disabled={isLoading}
             />
             {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
           </div>
-          {/* Category */}
+          
+          {/* Shop Name */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">
-              Category <span className="text-red-500">*</span>
+            <label className="block text-gray-700 font-medium mb-2" htmlFor="shop_name">
+              Shop Name <span className="text-red-500">*</span>
             </label>
-            <select
-              name="category"
-              value={formData.category}
+            <input
+              type="text"
+              id="shop_name"
+              name="shop_name"
+              value={formData.shop_name}
               onChange={handleChange}
               onBlur={handleBlur}
-              className={`w-full px-3 py-2 border ${errors.category ? 'border-red-500' : 'border-gray-300'} rounded-md appearance-none`}
+              placeholder="Enter shop name"
+              className={`w-full px-3 py-2 border ${errors.shop_name ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
               required
               disabled={isLoading}
-            >
-              <option value="" disabled>Select product category</option>
-              {categories.map((category, index) => (
-                <option key={index} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-            {errors.category && <p className="mt-1 text-sm text-red-500">{errors.category}</p>}
+            />
+            {errors.shop_name && <p className="mt-1 text-sm text-red-500">{errors.shop_name}</p>}
           </div>
+          
           {/* Phone */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">
+            <label className="block text-gray-700 font-medium mb-2" htmlFor="phone">
               Mobile Number <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+              id="phone"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="Enter supplier contact number (e.g., 071 1234567)"
-              className={`w-full px-3 py-2 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+              className={`w-full px-3 py-2 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
               required
               disabled={isLoading}
             />
             {errors.phone && <p className="mt-1 text-sm text-red-500">{errors.phone}</p>}
           </div>
+          
           {/* Email */}
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">
+            <label className="block text-gray-700 font-medium mb-2" htmlFor="email">
               Email <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
+              id="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="Enter supplier Email"
-              className={`w-full px-3 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-md ${formData.email && formData.email.length > 25 ? 'text-sm' : ''}`}
+              className={`w-full px-3 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formData.email && formData.email.length > 25 ? 'text-sm' : ''}`}
               required
               disabled={isLoading}
             />
             {errors.email && <p className="mt-1 text-sm text-red-500">{errors.email}</p>}
           </div>
+          
           {/* Address */}
           <div className="mb-6">
-            <label className="block text-gray-700 mb-2">
+            <label className="block text-gray-700 font-medium mb-2" htmlFor="address">
               Address <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+              id="address"
               name="address"
               value={formData.address}
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="Enter supplier Address"
-              className={`w-full px-3 py-2 border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-md ${formData.address && formData.address.length > 30 ? 'text-sm' : ''}`}
+              className={`w-full px-3 py-2 border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${formData.address && formData.address.length > 30 ? 'text-sm' : ''}`}
               required
               disabled={isLoading}
             />
             {errors.address && <p className="mt-1 text-sm text-red-500">{errors.address}</p>}
           </div>
+          
           {/* Submit Button */}
           <button
             type="submit"
-            className={`w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+            className={`w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors shadow-md ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
             disabled={isLoading}
           >
             {isLoading ? (

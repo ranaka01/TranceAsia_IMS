@@ -63,7 +63,7 @@ exports.getCategories = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Detailed error in getCategories:", error.stack);
+    console.error("Detailed error in getCategories:", error);
     res.status(500).json({
       status: 'error',
       message: error.message || 'Internal server error'
@@ -75,6 +75,15 @@ exports.getCategories = async (req, res) => {
 exports.createProduct = async (req, res) => {
   try {
     console.log("Creating product with data:", req.body);
+    
+    // Validate required fields
+    const { title, category, supplier } = req.body;
+    if (!title || !category || !supplier) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Title, category, and supplier are required fields'
+      });
+    }
     
     const newProduct = await Product.create(req.body);
     
@@ -101,12 +110,23 @@ exports.createProduct = async (req, res) => {
   }
 };
 
-// Update a product
+// Update a product - Modified to support partial updates
 exports.updateProduct = async (req, res) => {
   try {
     console.log("Updating product with ID:", req.params.id);
     console.log("Update data:", req.body);
     
+    // Get the current product data first
+    const existingProduct = await Product.findById(req.params.id);
+    if (!existingProduct) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Product not found'
+      });
+    }
+    
+    // For partial updates, we don't need to validate that all fields are present
+    // Just pass the update data to the model
     const updatedProduct = await Product.update(req.params.id, req.body);
     
     res.status(200).json({
@@ -160,7 +180,7 @@ exports.deleteProduct = async (req, res) => {
       });
     }
     
-    if (error.message.includes('associated')) {
+    if (error.message.includes('referenced')) {
       return res.status(400).json({
         status: 'fail',
         message: error.message
@@ -213,7 +233,7 @@ exports.addCategory = async (req, res) => {
   }
 };
 
-// Update a category - FIXED
+// Update a category
 exports.updateCategory = async (req, res) => {
   try {
     const { oldCategory, newCategory } = req.body;
@@ -227,7 +247,6 @@ exports.updateCategory = async (req, res) => {
     
     console.log("Updating category from", oldCategory, "to", newCategory);
     
-    // Call the updateCategory method specifically
     const result = await Product.updateCategory(oldCategory, newCategory);
     
     res.status(200).json({

@@ -65,7 +65,8 @@ const Products = () => {
       // Extract supplier data for the dropdown
       const supplierData = data.map(supplier => ({
         id: supplier.id,
-        name: supplier.name
+        name: supplier.name,
+        shopName: supplier.shop_name || supplier.shopName || "" // Handle both formats
       }));
       
       setSuppliers(supplierData);
@@ -73,9 +74,9 @@ const Products = () => {
       console.error("Error fetching suppliers:", err);
       // Fallback to sample suppliers if API fails
       setSuppliers([
-        { id: 1, name: "Selix Computers" },
-        { id: 2, name: "Tech Distributors" },
-        { id: 3, name: "Global Electronics" }
+        { id: 1, name: "Selix Computers", shopName: "Tech Store" },
+        { id: 2, name: "Tech Distributors", shopName: "Distribution Inc" },
+        { id: 3, name: "Global Electronics", shopName: "Global Tech" }
       ]);
     }
   };
@@ -269,17 +270,8 @@ const Products = () => {
 
   // Handler for adding a new product
   const handleSaveProduct = async (productData) => {
-    // Update product data to include category ID if needed
-    const formattedData = {
-      ...productData,
-      // If only category name is provided, convert to the full category object
-      category: typeof productData.category === 'string' 
-        ? productData.category 
-        : productData.category.id
-    };
-    
     // Validate data before submitting
-    const errors = validateProductData(formattedData);
+    const errors = validateProductData(productData);
     
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -288,7 +280,7 @@ const Products = () => {
     
     setIsSubmitting(true);
     try {
-      const response = await API.post(API_URL, formattedData);
+      const response = await API.post(API_URL, productData);
       
       // Add the new product to the local state
       let newProduct;
@@ -325,31 +317,73 @@ const Products = () => {
     setValidationErrors({});
   };
 
+  // Updated handleUpdateProduct to support partial updates
   const handleUpdateProduct = async (updatedData) => {
-    // Update product data to include category ID if needed
-    const formattedData = {
-      ...updatedData,
-      // If only category name is provided, convert to the full category object
-      category: typeof updatedData.category === 'string' 
-        ? updatedData.category 
-        : updatedData.category.id
-    };
+    // Create a deep copy of the data to avoid mutation issues
+    const formattedData = JSON.parse(JSON.stringify(updatedData));
     
-    // Validate data before submitting
-    const errors = validateProductData(formattedData);
+    // Get the touched fields from the form data
+    const touchedFields = formattedData._touchedFields || {};
+    delete formattedData._touchedFields;
     
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
+    // Log the update data before processing
+    console.log("Update starting data:", { 
+      updateData: formattedData, 
+      touchedFields: touchedFields,
+      currentProduct: currentProduct 
+    });
+    
+    // Create a patch object that only includes fields that have been modified
+    const patchData = {};
+    
+    // Only include fields that are different from the current product and have been touched
+    if (touchedFields.title && formattedData.title !== currentProduct.title) {
+      patchData.title = formattedData.title;
+    }
+    
+    if (touchedFields.category && formattedData.category !== currentProduct.categoryId) {
+      patchData.category = formattedData.category;
+    }
+    
+    if (touchedFields.supplier && formattedData.supplier !== currentProduct.supplierId) {
+      patchData.supplier = formattedData.supplier;
+    }
+    
+    // Only include details if it was modified
+    if (touchedFields.details && formattedData.details !== currentProduct.details) {
+      patchData.details = formattedData.details;
+    }
+    
+    // Clean up data - remove any undefined or null values
+    Object.keys(patchData).forEach(key => {
+      if (patchData[key] === undefined || patchData[key] === null) {
+        delete patchData[key];
+      }
+    });
+    
+    // Only proceed if there are actually changes to update
+    if (Object.keys(patchData).length === 0) {
+      console.log("No changes detected, skipping update");
+      // Close modal and reset state since there's nothing to update
+      setIsEditProductModalOpen(false);
+      setCurrentProduct(null);
+      setValidationErrors({});
       return;
     }
     
+    // Log the final data being sent to the API
+    console.log("Sending patch data to API:", patchData);
+    
     setIsSubmitting(true);
     try {
-      await API.patch(`${API_URL}/${currentProduct.id}`, formattedData);
+      // Send the update request with only the changed fields
+      const response = await API.patch(`${API_URL}/${currentProduct.id}`, patchData);
+      console.log("Update response:", response.data);
       
       // Refresh products to get updated data
       fetchProducts();
       
+      // Close modal and reset state
       setIsEditProductModalOpen(false);
       setCurrentProduct(null);
       setValidationErrors({});
@@ -361,10 +395,11 @@ const Products = () => {
     }
   };
 
+  // Simplified to only validate title, category, and supplier
   const validateProductData = (data) => {
     const errors = {};
     
-    // Check for empty fields
+    // Check for empty fields (only title, category, and supplier are required)
     if (!data.title || data.title.trim() === "") {
       errors.title = "Product title is required";
     } else if (data.title.trim().length < 3) {
@@ -373,28 +408,6 @@ const Products = () => {
     
     if (!data.category) {
       errors.category = "Category is required";
-    }
-    
-    if (!data.supplyPrice || data.supplyPrice.trim() === "") {
-      errors.supplyPrice = "Supply price is required";
-    } else if (isNaN(parseFloat(data.supplyPrice)) || parseFloat(data.supplyPrice) <= 0) {
-      errors.supplyPrice = "Supply price must be a positive number";
-    }
-    
-    if (!data.retailPrice || data.retailPrice.trim() === "") {
-      errors.retailPrice = "Retail price is required";
-    } else if (isNaN(parseFloat(data.retailPrice)) || parseFloat(data.retailPrice) <= 0) {
-      errors.retailPrice = "Retail price must be a positive number";
-    }
-    
-    if (!data.quantity || data.quantity.trim() === "") {
-      errors.quantity = "Quantity is required";
-    } else if (isNaN(parseInt(data.quantity)) || parseInt(data.quantity) < 0) {
-      errors.quantity = "Quantity must be a non-negative number";
-    }
-    
-    if (data.warranty && (isNaN(parseInt(data.warranty)) || parseInt(data.warranty) < 0)) {
-      errors.warranty = "Warranty must be a non-negative number";
     }
     
     if (!data.supplier) {
@@ -478,14 +491,6 @@ const Products = () => {
     setSelectedProduct(null);
   };
 
-  // Helper function to display warranty text
-  const getWarrantyText = (warranty) => {
-    if (!warranty || warranty === 0) {
-      return "No warranty";
-    }
-    return `${warranty} months`;
-  };
-
   return (
     <div className="p-6 h-full flex flex-col">
       <div className="mb-6">
@@ -554,10 +559,9 @@ const Products = () => {
                   <thead>
                     <tr className="border-b border-gray-200">
                       <th className="py-3 px-4 text-left">Product ID</th>
-                      <th className="py-3 px-4 text-left">Title</th>
+                      <th className="py-3 px-4 text-left">Product Name</th>
                       <th className="py-3 px-4 text-left">Category</th>
-                      <th className="py-3 px-4 text-left">Quantity</th>
-                      <th className="py-3 px-4 text-left">Retail Price</th>
+                      <th className="py-3 px-4 text-left">Supplier</th>
                       <th className="py-3 px-4 text-center">Actions</th>
                     </tr>
                   </thead>
@@ -568,8 +572,10 @@ const Products = () => {
                           <td className="py-3 px-4">{product.id}</td>
                           <td className="py-3 px-4">{product.title}</td>
                           <td className="py-3 px-4">{product.category}</td>
-                          <td className="py-3 px-4">{product.quantity}</td>
-                          <td className="py-3 px-4">{parseFloat(product.retailPrice).toFixed(2)}</td>
+                          <td className="py-3 px-4">
+                            {product.supplier}
+                            {product.shopName && ` - ${product.shopName}`}
+                          </td>
                           <td className="py-3 px-4 text-center">
                             <div className="flex justify-center space-x-2">
                               <button
@@ -638,7 +644,7 @@ const Products = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="6" className="py-4 px-4 text-center text-gray-500">
+                        <td colSpan="5" className="py-4 px-4 text-center text-gray-500">
                           No products found matching your search criteria
                         </td>
                       </tr>
@@ -680,7 +686,7 @@ const Products = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && productToDelete && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-md p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
             <p className="mb-6">
@@ -704,7 +710,7 @@ const Products = () => {
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className={`px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 ${
+                className={`px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors ${
                   isSubmitting ? "opacity-70 cursor-not-allowed" : ""
                 }`}
                 disabled={isSubmitting}
@@ -725,8 +731,8 @@ const Products = () => {
 
       {/* Product Details Modal */}
       {showProductDetails && selectedProduct && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-md p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-md p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Product Details</h2>
               <button
@@ -742,7 +748,7 @@ const Products = () => {
                 <div className="font-medium">{selectedProduct.id}</div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Title:</div>
+                <div className="text-gray-600">Product Name:</div>
                 <div className="font-medium">{selectedProduct.title}</div>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -750,31 +756,22 @@ const Products = () => {
                 <div className="font-medium">{selectedProduct.category}</div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Quantity:</div>
-                <div className="font-medium">{selectedProduct.quantity}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Supply Price:</div>
-                <div className="font-medium">Rs. {parseFloat(selectedProduct.supplyPrice).toFixed(2)}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Retail Price:</div>
-                <div className="font-medium">Rs. {parseFloat(selectedProduct.retailPrice).toFixed(2)}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Warranty:</div>
-                <div className="font-medium">{getWarrantyText(selectedProduct.warranty)}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
                 <div className="text-gray-600">Supplier:</div>
-                <div className="font-medium">{selectedProduct.supplier}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Profit Margin:</div>
                 <div className="font-medium">
-                  {(((parseFloat(selectedProduct.retailPrice) - parseFloat(selectedProduct.supplyPrice)) / parseFloat(selectedProduct.supplyPrice)) * 100).toFixed(2)}%
+                  {selectedProduct.supplier}
+                  {selectedProduct.shopName && ` - ${selectedProduct.shopName}`}
                 </div>
               </div>
+              
+              {/* Product Details Section */}
+              {selectedProduct.details && (
+                <div className="mt-4">
+                  <div className="text-gray-600 mb-1">Details:</div>
+                  <div className="bg-gray-50 p-3 rounded text-sm">
+                    {selectedProduct.details}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-6">
               <button

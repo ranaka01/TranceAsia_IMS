@@ -9,7 +9,13 @@ import Products from "./pages/Admin/Products";
 import Suppliers from "./pages/Admin/Suppliers";
 import Customers from "./pages/Admin/Customers";
 import Orders from "./pages/Admin/Orders";
+import Purchases from "./pages/Admin/Purchases";
 import Repairs from "./pages/Admin/Repairs";
+import Users from "./pages/Admin/Users"
+import Sales from "./pages/Admin/Sales"
+import Inventory from "./pages/Admin/Inventory"
+import Warranty from "./pages/Admin/Warranty"
+import Notifications from "./pages/Admin/notifications"
 
 // Auth components
 import Login from "./pages/Login";
@@ -87,6 +93,13 @@ const App = () => {
           <Route path="customers" element={<Customers />} />
           <Route path="orders" element={<Orders />} />
           <Route path="repairs" element={<Repairs />} />
+          <Route path="users" element={<Users />} />
+          <Route path="purchases" element={<Purchases />} />
+          <Route path="sales" element={<Sales />} />
+          <Route path="inventory" element={<Inventory />} />
+          <Route path="warranty" element={<Warranty />} />
+          <Route path="notifications" element={<Notifications />} />
+
         </Route>
         
         {/* Cashier routes */}
