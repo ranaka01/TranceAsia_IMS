@@ -3,7 +3,9 @@ const express = require('express');
 const db = require('./db');
 const UserRoutes = require('./routes/UserRoutes'); 
 const SupplierRoutes = require('./routes/SupplierRoutes');
-const ProductRoutes = require('./routes/ProductRoutes'); // Import Product routes
+const ProductRoutes = require('./routes/ProductRoutes'); 
+const CustomerRoutes = require('./routes/CustomerRoutes');
+const PurchaseRoutes = require('./routes/PurchaseRoutes');
 const cors = require('cors');
 
 // Initialize app first
@@ -16,7 +18,9 @@ app.use(express.json());
 // Define your routes
 app.use('/users', UserRoutes);
 app.use('/suppliers', SupplierRoutes);
-app.use('/products', ProductRoutes); // Register the Product routes
+app.use('/products', ProductRoutes);
+app.use('/customers', CustomerRoutes);  
+app.use('/purchases',PurchaseRoutes);
 
 const PORT = process.env.PORT || 5000;
 
