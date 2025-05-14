@@ -1,11 +1,51 @@
 const express = require('express');
-const { registerUser,loginUser } = require('../Controllers/UserController');	
-const {authenticateUser} = require('../utils/authenticateUser');
-const {authorizeRole} = require('../utils/authorizeRoles');
+const multer = require('multer');
+const { 
+    registerUser, 
+    loginUser, 
+    getAllUsers, 
+    getUser, 
+    updateUserStatus,
+    deleteUser,
+    getUserProfile,
+    updateUserProfile
+} = require('../Controllers/UserController');
+const { authenticateUser } = require('../utils/authenticateUser');
+const { authorizeRole } = require('../utils/authorizeRoles');
+
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 2 * 1024 * 1024 // 2MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
 
 const router = express.Router();
 
-// Protect this route with authentication and Admin role authorization
-router.post('/register-user', authenticateUser, authorizeRole(['Admin']), registerUser);
-router.post('/login', loginUser);	
+// Public routes
+router.post('/login', loginUser);
+
+// Protected routes
+router.use(authenticateUser);
+
+// Admin only routes
+router.post('/register-user', authorizeRole(['Admin']), registerUser);
+router.get('/', authorizeRole(['Admin']), getAllUsers);
+router.patch('/:id/status', authorizeRole(['Admin']), updateUserStatus);
+router.delete('/:id', authorizeRole(['Admin']), deleteUser);
+
+// User profile routes (accessible by the user themselves and admins)
+router.get('/:id', getUserProfile);
+router.patch('/:id/profile', upload.single('profile_image'), updateUserProfile);
+
 module.exports = router;

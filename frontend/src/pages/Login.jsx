@@ -24,9 +24,19 @@ const Login = () => {
 
     try {
       const response = await API.post('users/login', { email, password });
+      console.log('Login response:', response.data); // Debug response
 
-      // Get token from response
-      const { token } = response.data;
+      // Check if the response contains the token in the expected structure
+      if (!response.data || !response.data.data || !response.data.data.token) {
+        throw new Error('Invalid response format. Token not found.');
+      }
+
+      // Get token from response - updated to match the response structure
+      const token = response.data.data.token;
+
+      if (!token || typeof token !== 'string') {
+        throw new Error('Invalid token received from server');
+      }
 
       // Save token
       localStorage.setItem('token', token);
@@ -47,8 +57,11 @@ const Login = () => {
       }
     } catch (err) {
       console.error('Login error:', err);
+      
       if (err.response && err.response.data && err.response.data.message) {
         setError(err.response.data.message);
+      } else if (err.message) {
+        setError(err.message);
       } else {
         setError('Login failed. Please try again.');
       }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Button from "../../components/UI/Button";
 import SearchInput from "../../components/UI/SearchInput";
-import AddSupplierModal from "./AddSupplierModal";
+//import AddSupplierModal from "./AddSupplierModal";
 import API from "../../utils/api";
 
 const Suppliers = () => {

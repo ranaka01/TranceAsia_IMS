@@ -1,143 +1,176 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { 
-  MdNotifications,
-  MdInventory,
-  MdSell,
-  MdBuild,
-  MdPerson
-} from "react-icons/md";
+import React, { useState } from 'react';
+import { MdCircle, MdCheck, MdDelete } from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
 
 const NotificationPanel = () => {
-  const [showNotifications, setShowNotifications] = useState(false);
-  const notificationRef = useRef(null);
   const navigate = useNavigate();
   
-  // Close notifications panel when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-        setShowNotifications(false);
-      }
-    };
-    
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [notificationRef]);
-  
-  // Icon colors that match your application theme
-  const iconColors = {
-    products: "#10B981",  // Green
-    repair: "#F87171",    // Red for repair
-    sales: "#EC4899",     // Pink for sales
-    users: "#6366F1",     // Indigo for users
-    notification: "#F59E0B" // Amber for notifications
+  // Sample notifications - in a real application, these would be fetched from an API
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      title: 'New Order',
+      message: 'New order #1234 has been placed',
+      time: '10 minutes ago',
+      read: false,
+      type: 'order'
+    },
+    {
+      id: 2,
+      title: 'Low Stock Alert',
+      message: 'Product "Logitech Mouse" is running low on stock',
+      time: '1 hour ago',
+      read: false,
+      type: 'inventory'
+    },
+    {
+      id: 3,
+      title: 'Repair Completed',
+      message: 'Repair #5678 has been completed',
+      time: '3 hours ago',
+      read: true,
+      type: 'repair'
+    },
+    {
+      id: 4,
+      title: 'New Customer Registration',
+      message: 'A new customer has registered: John Doe',
+      time: '5 hours ago',
+      read: true,
+      type: 'customer'
+    },
+    {
+      id: 5,
+      title: 'Payment Received',
+      message: 'Payment of LKR 15,000 received for order #1230',
+      time: '1 day ago',
+      read: true,
+      type: 'payment'
+    }
+  ]);
+
+  const markAsRead = (id) => {
+    setNotifications(notifications.map(notification => 
+      notification.id === id ? { ...notification, read: true } : notification
+    ));
   };
-  
-  const toggleNotifications = () => {
-    setShowNotifications(!showNotifications);
+
+  const deleteNotification = (id) => {
+    setNotifications(notifications.filter(notification => notification.id !== id));
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(notifications.map(notification => ({ ...notification, read: true })));
+  };
+
+  // Navigate to the Notifications page
+  const handleViewAllNotifications = () => {
+    navigate('/admin/notifications');
+  };
+
+  // Get notification type icon/color
+  const getNotificationTypeStyles = (type) => {
+    switch (type) {
+      case 'order':
+        return 'bg-blue-100 text-blue-500';
+      case 'inventory':
+        return 'bg-yellow-100 text-yellow-500';
+      case 'repair':
+        return 'bg-green-100 text-green-500';
+      case 'customer':
+        return 'bg-purple-100 text-purple-500';
+      case 'payment':
+        return 'bg-emerald-100 text-emerald-500';
+      default:
+        return 'bg-gray-100 text-gray-500';
+    }
   };
 
   return (
-    <div ref={notificationRef} className="relative">
-      <button 
-        className="p-1.5 rounded-full hover:bg-gray-100 transition-all"
-        aria-label="Notifications"
-        title="Notifications"
-        onClick={toggleNotifications}
-      >
-        <MdNotifications size={20} color={iconColors.notification} />
-        {/* Notification badge */}
-        <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-          3
-        </span>
-      </button>
-      
-      {/* Notification panel */}
-      {showNotifications && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg z-50 overflow-hidden border border-gray-200">
-          <div className="p-3 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h3 className="text-md font-semibold text-gray-700">Notifications</h3>
-              <button className="text-xs text-blue-600 hover:text-blue-800">Mark all as read</button>
-            </div>
-          </div>
-          
-          {/* Notification items */}
-          <div className="max-h-80 overflow-y-auto">
-            {/* Notification item 1 - Unread */}
-            <div className="p-3 border-b border-gray-100 bg-blue-50 hover:bg-gray-50 cursor-pointer">
-              <div className="flex">
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <MdInventory size={20} color={iconColors.products} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-800">Low stock alert</p>
-                  <p className="text-xs text-gray-500 mt-1">Item #A1253 is running low in inventory.</p>
-                  <p className="text-xs text-gray-400 mt-1">10 minutes ago</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Notification item 2 - Unread */}
-            <div className="p-3 border-b border-gray-100 bg-blue-50 hover:bg-gray-50 cursor-pointer">
-              <div className="flex">
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <MdSell size={20} color={iconColors.sales} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-800">New sale completed</p>
-                  <p className="text-xs text-gray-500 mt-1">Order #2346 has been processed.</p>
-                  <p className="text-xs text-gray-400 mt-1">25 minutes ago</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Notification item 3 - Unread */}
-            <div className="p-3 border-b border-gray-100 bg-blue-50 hover:bg-gray-50 cursor-pointer">
-              <div className="flex">
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                  <MdBuild size={20} color={iconColors.repair} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-800">Repair completed</p>
-                  <p className="text-xs text-gray-500 mt-1">Ticket #R5532 has been resolved.</p>
-                  <p className="text-xs text-gray-400 mt-1">1 hour ago</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Notification item 4 - Read */}
-            <div className="p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
-              <div className="flex">
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                  <MdPerson size={20} color={iconColors.users} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-700">New user registration</p>
-                  <p className="text-xs text-gray-500 mt-1">User John Doe has registered.</p>
-                  <p className="text-xs text-gray-400 mt-1">Yesterday</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* View all link */}
-          <div className="p-2 border-t border-gray-200 text-center">
-            <button 
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-              onClick={() => {
-                setShowNotifications(false);
-                navigate('/admin/notifications');
-              }}
+    <div className="bg-white divide-y divide-gray-100">
+      {/* Header actions */}
+      <div className="flex justify-between items-center p-3 border-b border-gray-200">
+        <span className="font-semibold">Notifications</span>
+        <button 
+          onClick={markAllAsRead}
+          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+        >
+          Mark all as read
+        </button>
+      </div>
+
+      {/* Notification list */}
+      <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+        {notifications.length > 0 ? (
+          notifications.map((notification) => (
+            <div 
+              key={notification.id} 
+              className={`p-4 flex ${notification.read ? 'bg-white' : 'bg-blue-50'} hover:bg-gray-50 transition-colors`}
             >
-              View all notifications
-            </button>
+              {/* Status indicator */}
+              <div className="mr-3 mt-0.5">
+                {!notification.read && (
+                  <MdCircle className="text-blue-500" size={8} />
+                )}
+              </div>
+              
+              {/* Content */}
+              <div className="flex-1 pr-6">
+                <div className="flex items-start justify-between mb-1">
+                  <h3 className={`font-medium ${notification.read ? 'text-gray-700' : 'text-gray-900'}`}>
+                    {notification.title}
+                  </h3>
+                  <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+                    {notification.time}
+                  </span>
+                </div>
+                <p className={`text-sm ${notification.read ? 'text-gray-500' : 'text-gray-700'}`}>
+                  {notification.message}
+                </p>
+                
+                {/* Type tag */}
+                <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${getNotificationTypeStyles(notification.type)}`}>
+                  {notification.type.charAt(0).toUpperCase() + notification.type.slice(1)}
+                </span>
+              </div>
+              
+              {/* Actions */}
+              <div className="flex flex-col space-y-2">
+                {!notification.read && (
+                  <button 
+                    onClick={() => markAsRead(notification.id)}
+                    className="p-1 text-gray-400 hover:text-green-500 rounded-full hover:bg-gray-100"
+                    title="Mark as read"
+                  >
+                    <MdCheck size={16} />
+                  </button>
+                )}
+                <button 
+                  onClick={() => deleteNotification(notification.id)}
+                  className="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-gray-100"
+                  title="Delete notification"
+                >
+                  <MdDelete size={16} />
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="p-6 text-center text-gray-500">
+            No notifications
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="p-3 bg-gray-50 border-t border-gray-200 text-center">
+        <button 
+          onClick={handleViewAllNotifications}
+          className="text-indigo-600 text-sm font-medium hover:text-indigo-800"
+        >
+          View all notifications
+        </button>
+      </div>
     </div>
   );
 };

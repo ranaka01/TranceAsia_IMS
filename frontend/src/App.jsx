@@ -16,6 +16,9 @@ import Sales from "./pages/Admin/Sales"
 import Inventory from "./pages/Admin/Inventory"
 import Warranty from "./pages/Admin/Warranty"
 import Notifications from "./pages/Admin/notifications"
+import Reports from "./pages/Admin/Reports";
+import Return from "./pages/Admin/Return";
+
 
 // Auth components
 import Login from "./pages/Login";
@@ -27,6 +30,7 @@ import CashierLayout from "./pages/Cashier/CashierLayout";
 import CashierCustomers from "./pages/Cashier/CashierCustomers";
 import CashierProducts from "./pages/Cashier/CashierProducts";
 import CashierShop from "./pages/Cashier/CashierShop";
+
 
 // Technician components 
 // Uncomment and update when TechnicianLayout is available
@@ -99,6 +103,8 @@ const App = () => {
           <Route path="inventory" element={<Inventory />} />
           <Route path="warranty" element={<Warranty />} />
           <Route path="notifications" element={<Notifications />} />
+          <Route path="reports" element={<Reports/>} />
+          <Route path="return" element={<Return/>} />
 
         </Route>
         

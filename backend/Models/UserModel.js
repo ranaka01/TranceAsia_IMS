@@ -2,12 +2,14 @@ const db = require('../db');
 const bcrypt = require('bcryptjs');
 
 class User {
-    constructor(Username, Email, Phone, Password, Role) {
+    constructor(Username, Email, Phone, Password, Role, first_name = null, last_name = null) {
         this.Username = Username;
         this.Email = Email;
         this.Phone = Phone;
         this.Password = Password;
         this.Role = Role;
+        this.first_name = first_name;
+        this.last_name = last_name;
     }
 
     // Hash the password before storing
@@ -15,7 +17,7 @@ class User {
         this.Password = await bcrypt.hash(this.Password, 10);
     }
 
-    // Save user to the database using named columns
+    // Save user to the database
     async save() {
         await this.hashPassword();
 
@@ -24,31 +26,68 @@ class User {
             Email: this.Email,
             Phone: this.Phone,
             Role: this.Role,
-            Password: this.Password
+            Password: this.Password,
+            first_name: this.first_name,
+            last_name: this.last_name
         };
 
-        console.log('Saving user to DB:', userObj); // Debug line
-        await db.query('INSERT INTO User SET ?', userObj);
+        try {
+            const [result] = await db.query('INSERT INTO User SET ?', userObj);
+            return result.insertId;
+        } catch (error) {
+            throw new Error(`Error saving user: ${error.message}`);
+        }
     }
 
     // Static method to find a user by email
     static async findByEmail(email) {
-        const [users] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
-        return users.length > 0
-            ? new User(users[0].Username, users[0].Email, users[0].Phone, users[0].Password, users[0].Role)
-            : null;
+        try {
+            const [users] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
+            return users.length > 0 ? users[0] : null;
+        } catch (error) {
+            throw new Error(`Error finding user by email: ${error.message}`);
+        }
     }
 
-    // Login method
-    static async login(email, password) {
-        const [users] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
-        if (users.length === 0) return null;
+    // Static method to find a user by ID
+    static async findById(id) {
+        try {
+            const [users] = await db.query('SELECT * FROM User WHERE User_ID = ?', [id]);
+            return users.length > 0 ? users[0] : null;
+        } catch (error) {
+            throw new Error(`Error finding user by ID: ${error.message}`);
+        }
+    }
 
-        const user = users[0];
-        const validPassword = await bcrypt.compare(password, user.Password);
-        if (!validPassword) return null;
+    // Static method to get all users
+    static async findAll() {
+        try {
+            const [users] = await db.query(`
+                SELECT 
+                    User_ID, Username, first_name, last_name, Email, Phone, Role, 
+                    is_active, created_at 
+                FROM User 
+                ORDER BY User_ID DESC
+            `);
+            return users;
+        } catch (error) {
+            throw new Error(`Error fetching all users: ${error.message}`);
+        }
+    }
 
-        return new User(user.Username, user.Email, user.Phone, user.Password, user.Role);
+    // Static method to update user status
+    static async updateStatus(userId, isActive) {
+        try {
+            const [result] = await db.query('UPDATE User SET is_active = ? WHERE User_ID = ?', [isActive, userId]);
+            return result.affectedRows > 0;
+        } catch (error) {
+            throw new Error(`Error updating user status: ${error.message}`);
+        }
+    }
+
+    // Static method to verify password
+    static async verifyPassword(plainPassword, hashedPassword) {
+        return await bcrypt.compare(plainPassword, hashedPassword);
     }
 }
 
