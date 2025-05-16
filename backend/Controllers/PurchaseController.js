@@ -73,6 +73,7 @@ exports.createPurchase = async (req, res) => {
     const purchaseData = {
       product_id: parseInt(req.body.product_id),
       quantity: parseInt(req.body.quantity) || 0,
+      remaining_quantity: parseInt(req.body.quantity) || 0, // Initialize remaining quantity
       warranty: req.body.warranty || '12 months',
       buying_price: parseFloat(req.body.buying_price) || 0,
       selling_price: parseFloat(req.body.selling_price) || 0,
@@ -112,6 +113,10 @@ exports.createPurchase = async (req, res) => {
     });
   }
 };
+
+//remaining quantity
+
+
 
 // Update a purchase
 exports.updatePurchase = async (req, res) => {

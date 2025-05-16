@@ -1,4 +1,5 @@
 const Product = require('../Models/ProductModel');
+const Product1 = require('../Models/ProductSupplierModel');
 
 // Get all products
 exports.getAllProducts = async (req, res) => {
@@ -309,4 +310,19 @@ exports.deleteCategory = async (req, res) => {
       message: error.message || 'Internal server error'
     });
   }
+};
+
+
+const ProductSupplier = require('../Models/ProductSupplierModel');
+
+exports.getSuppliersByProduct = async (req, res) => {
+    const productId = req.params.productId;
+
+    try {
+        const suppliers = await ProductSupplier.getSuppliersByProduct(productId);
+        res.json(suppliers);
+        console.log("Suppliers fetched successfully:", suppliers);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 };

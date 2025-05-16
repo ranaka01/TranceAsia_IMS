@@ -7,6 +7,7 @@ const SupplierRoutes = require('./routes/SupplierRoutes');
 const ProductRoutes = require('./routes/ProductRoutes'); 
 const CustomerRoutes = require('./routes/CustomerRoutes');
 const PurchaseRoutes = require('./routes/PurchaseRoutes');
+const SalesRoutes = require('./routes/SalesRoutes');
 const cors = require('cors');
 const fs = require('fs'); // Add this for file system operations
 
@@ -33,6 +34,9 @@ app.use('/suppliers', SupplierRoutes);
 app.use('/products', ProductRoutes);
 app.use('/customers', CustomerRoutes);  
 app.use('/purchases', PurchaseRoutes);
+app.use('/sales', SalesRoutes);
+//app.use('/products', require('./routes/productRoute'));
+
 
 const PORT = process.env.PORT || 5000;
 

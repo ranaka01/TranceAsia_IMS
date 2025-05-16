@@ -20,5 +20,13 @@ router.get('/categories/all', productController.getCategories);
 router.post('/categories/add', authorizeRole(['Admin']), productController.addCategory);
 router.patch('/categories/update', authorizeRole(['Admin']), productController.updateCategory);
 router.delete('/categories/delete/:category', authorizeRole(['Admin']), productController.deleteCategory);
+router.get('/:productId/suppliers', productController.getSuppliersByProduct);
+
+
+
+router.get('/:productId/suppliers', productController.getSuppliersByProduct);
+
+
+
 
 module.exports = router;
