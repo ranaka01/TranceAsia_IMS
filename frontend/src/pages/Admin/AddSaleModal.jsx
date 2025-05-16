@@ -13,6 +13,7 @@ const AddSaleModal = ({
   const [selectedStock, setSelectedStock] = useState(null);
   const [availableStocks, setAvailableStocks] = useState([]);
   const [quantity, setQuantity] = useState(1);
+  const [serialNumber, setSerialNumber] = useState("");
   const [serialNumbers, setSerialNumbers] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [customerName, setCustomerName] = useState("");
@@ -180,16 +181,25 @@ const AddSaleModal = ({
   const handleStockSelect = (stock) => {
     setSelectedStock(stock);
     setQuantity(1);
+    setSerialNumber("");
     setSerialNumbers([]);
   };
 
   const handleQuantityChange = (e) => {
     const value = parseInt(e.target.value, 10) || 1;
     setQuantity(Math.max(1, Math.min(value, selectedStock?.remaining_quantity || 1)));
-    setSerialNumbers(Array(value).fill(""));
+    
+    // If quantity > 1 and requires_serial, prepare array for multiple serial numbers
+    if (selectedProduct?.requires_serial && value > 1) {
+      setSerialNumbers(Array(value).fill(""));
+    }
   };
 
-  const handleSerialNumberChange = (index, value) => {
+  const handleSerialNumberChange = (e) => {
+    setSerialNumber(e.target.value);
+  };
+
+  const handleMultipleSerialNumberChange = (index, value) => {
     const newSerialNumbers = [...serialNumbers];
     newSerialNumbers[index] = value;
     setSerialNumbers(newSerialNumbers);
@@ -210,33 +220,56 @@ const AddSaleModal = ({
     if (!selectedStock) newErrors.stock = "Please select stock";
     if (quantity <= 0) newErrors.quantity = "Quantity must be greater than 0";
     if (quantity > (selectedStock?.remaining_quantity || 0)) newErrors.quantity = "Quantity exceeds available stock";
-    if (selectedProduct?.requires_serial && serialNumbers.some(sn => !sn)) {
-      newErrors.serialNumbers = "All serial numbers must be provided";
+    
+    // Serial number validation
+    if (selectedProduct?.requires_serial) {
+      if (quantity === 1 && !serialNumber) {
+        newErrors.serialNumber = "Serial number is required";
+      } else if (quantity > 1 && serialNumbers.some(sn => !sn)) {
+        newErrors.serialNumbers = "All serial numbers must be provided";
+      }
     }
+    
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
+    
     setErrors({});
     const discountedPrice = calculatePriceAfterDiscount(selectedStock.selling_price, discount);
+    
+    // Prepare serial numbers for cart
+    let itemSerialNumbers = [];
+    if (selectedProduct?.requires_serial) {
+      if (quantity === 1) {
+        itemSerialNumbers = [serialNumber];
+      } else {
+        itemSerialNumbers = serialNumbers;
+      }
+    }
+    
     const newItem = {
       id: Date.now(),
       product_id: selectedProduct.product_id,
       purchase_id: selectedStock.purchase_id,
       product_name: selectedProduct.name,
       quantity: quantity,
-      serial_numbers: serialNumbers.filter(sn => sn),
+      serial_numbers: itemSerialNumbers.filter(sn => sn),
       unit_price: selectedStock.selling_price,
       discounted_price: discountedPrice,
       warranty: selectedStock.warranty,
       discount: discount,
       subtotal: quantity * discountedPrice
     };
+    
     setCartItems([...cartItems, newItem]);
+    
+    // Reset selection
     setSelectedProduct(null);
     setSelectedStock(null);
     setAvailableStocks([]);
     setQuantity(1);
+    setSerialNumber("");
     setSerialNumbers([]);
     setDiscount(0);
     setProductSearchQuery("");
@@ -357,7 +390,7 @@ const AddSaleModal = ({
                                 className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                                 onClick={() => handleProductSelect(product)}
                               >
-                                {product.name || product.title}
+                                {product.name || product.title} (ID: {product.product_id || product.id})
                               </div>
                             ))
                           ) : (
@@ -389,7 +422,22 @@ const AddSaleModal = ({
                     {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
                   </div>
                 </div>
+
                 <div className="grid grid-cols-3 gap-6 mb-4">
+                  {/* Serial Number Field (moved to the left of quantity) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Serial Number</label>
+                    <input
+                      type="text"
+                      value={serialNumber}
+                      onChange={handleSerialNumberChange}
+                      placeholder="Enter serial number"
+                      disabled={!selectedStock || quantity > 1}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    {errors.serialNumber && <p className="mt-1 text-sm text-red-600">{errors.serialNumber}</p>}
+                  </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
                     <input
@@ -403,6 +451,7 @@ const AddSaleModal = ({
                     />
                     {errors.quantity && <p className="mt-1 text-sm text-red-600">{errors.quantity}</p>}
                   </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Discount (%)</label>
                     <input
@@ -416,6 +465,20 @@ const AddSaleModal = ({
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-6 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Original Price</label>
+                    <input
+                      type="text"
+                      value={selectedStock ? formatCurrency(selectedStock.selling_price) : ""}
+                      readOnly
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                    />
+                  </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Price After Discount</label>
                     <input
@@ -427,16 +490,18 @@ const AddSaleModal = ({
                     />
                   </div>
                 </div>
-                {selectedProduct && selectedProduct.requires_serial && (
+                
+                {/* Multiple Serial Numbers (only show if quantity > 1) */}
+                {selectedProduct && selectedProduct.requires_serial && quantity > 1 && (
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Serial Number(s)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Serial Numbers</label>
                     <div className="grid grid-cols-3 gap-2">
                       {Array.from({ length: quantity }).map((_, index) => (
                         <input
                           key={index}
                           type="text"
                           value={serialNumbers[index] || ""}
-                          onChange={(e) => handleSerialNumberChange(index, e.target.value)}
+                          onChange={(e) => handleMultipleSerialNumberChange(index, e.target.value)}
                           placeholder={`Serial #${index + 1}`}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         />
@@ -445,6 +510,7 @@ const AddSaleModal = ({
                     {errors.serialNumbers && <p className="mt-1 text-sm text-red-600">{errors.serialNumbers}</p>}
                   </div>
                 )}
+                
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -468,6 +534,7 @@ const AddSaleModal = ({
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product ID</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial No</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Warranty</th>
@@ -485,8 +552,11 @@ const AddSaleModal = ({
                     {cartItems.length > 0 ? (
                       cartItems.map((item) => (
                         <tr key={item.id}>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{item.product_id}</td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{item.product_name}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{item.serial_numbers.join(", ") || "-"}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                            {item.serial_numbers.join(", ") || "-"}
+                          </td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{item.warranty} months</td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{formatCurrency(item.unit_price)}</td>
@@ -510,7 +580,7 @@ const AddSaleModal = ({
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={isViewMode ? 8 : 9} className="px-4 py-4 text-center text-sm text-gray-500">
+                        <td colSpan={isViewMode ? 9 : 10} className="px-4 py-4 text-center text-sm text-gray-500">
                           {isViewMode ? "No items in this sale" : "Cart is empty"}
                         </td>
                       </tr>
@@ -518,6 +588,8 @@ const AddSaleModal = ({
                   </tbody>
                 </table>
               </div>
+              
+              {/* Cart total */}
               <div className="mt-4 border-t pt-4 flex justify-end">
                 <div className="w-1/3">
                   <div className="flex justify-between py-2 font-medium">
@@ -526,9 +598,11 @@ const AddSaleModal = ({
                   </div>
                 </div>
               </div>
+
               {errors.cart && <p className="mt-1 text-sm text-red-600">{errors.cart}</p>}
             </div>
           </div>
+          
           {/* Right Panel - Customer Information */}
           <div className="w-1/4 bg-gray-50 p-4 border-l flex flex-col overflow-hidden">
             {!isViewMode && (
@@ -647,6 +721,7 @@ const AddSaleModal = ({
                     </div>
                   )}
                 </div>
+                
                 <div className="mt-auto">
                   <button
                     type="button"
@@ -660,6 +735,7 @@ const AddSaleModal = ({
                 </div>
               </>
             )}
+            
             {isViewMode && currentSale && (
               <div className="bg-white rounded-lg shadow-sm p-4">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Sale Details</h3>
@@ -669,18 +745,21 @@ const AddSaleModal = ({
                     <p className="text-sm">Name: {currentSale.customer_name || "N/A"}</p>
                     <p className="text-sm">Phone: {currentSale.customer_phone || "N/A"}</p>
                   </div>
+                  
                   <div>
                     <h4 className="font-medium text-gray-700">Payment Information</h4>
                     <p className="text-sm">Method: {currentSale.payment_method || "Cash"}</p>
                     <p className="text-sm">Amount Paid: LKR {formatCurrency(currentSale.amount_paid || 0)}</p>
                     <p className="text-sm">Change Given: LKR {formatCurrency(currentSale.change_amount || 0)}</p>
                   </div>
+                  
                   <div>
                     <h4 className="font-medium text-gray-700">Sale Information</h4>
                     <p className="text-sm">Date: {currentSale.date ? new Date(currentSale.date).toLocaleString() : "N/A"}</p>
                     <p className="text-sm">Processed by: {currentSale.user_name || "N/A"}</p>
                   </div>
                 </div>
+                
                 <div className="mt-6">
                   <button
                     type="button"
@@ -698,6 +777,7 @@ const AddSaleModal = ({
           </div>
         </div>
       </div>
+
       {/* Payment Modal */}
       {isPaymentModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -714,6 +794,7 @@ const AddSaleModal = ({
                 </svg>
               </button>
             </div>
+            
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
               <div className="flex items-center space-x-4 border border-gray-300 rounded-md p-3">
@@ -752,6 +833,7 @@ const AddSaleModal = ({
                 </label>
               </div>
             </div>
+            
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">Amount Received</label>
               <input
@@ -763,6 +845,7 @@ const AddSaleModal = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
+            
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Change</label>
               <input
@@ -772,6 +855,7 @@ const AddSaleModal = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
               />
             </div>
+            
             {showSuccess && (
               <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -780,6 +864,7 @@ const AddSaleModal = ({
                 Sale completed successfully!
               </div>
             )}
+            
             <button
               type="button"
               onClick={handlePaymentComplete}
