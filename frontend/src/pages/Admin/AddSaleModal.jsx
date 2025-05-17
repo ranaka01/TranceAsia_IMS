@@ -2,6 +2,54 @@ import { usePDF } from 'react-to-pdf';
 import React, { useState, useEffect, useRef } from "react";
 import API from "../../utils/api";
 
+// CSS styles for PDF printing - using only basic CSS compatible with PDF generation
+const pdfStyles = `
+  @media print {
+    .pdf-header, .pdf-footer {
+      display: block !important;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #dddddd;
+    }
+
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+
+    /* Override any Tailwind colors that might use oklch */
+    * {
+      color: #000000 !important;
+      background-color: #ffffff !important;
+      border-color: #dddddd !important;
+    }
+
+    .pdf-header h2, .pdf-footer h2, strong {
+      color: #000000 !important;
+      font-weight: bold;
+    }
+
+    .pdf-divider {
+      border-top: 1px solid #dddddd;
+      border-bottom: 1px solid #dddddd;
+      margin: 10px 0;
+      padding: 5px 0;
+    }
+  }
+`;
+
 const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -42,14 +90,62 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
     console.log("currentSale in modal:", currentSale);
     if (currentSale) {
       setIsViewMode(true);
+
       // Set cartItems from currentSale.items if available
       if (Array.isArray(currentSale.items)) {
+        // Process items array
+        console.log('Current sale items:', currentSale.items);
+
         setCartItems(
-          currentSale.items.map((item, idx) => ({
-            ...item,
-            id: idx, // Ensure each item has a unique id
-          }))
+          currentSale.items.map((item, idx) => {
+            // Determine serial numbers
+            let serialNumbers = [];
+
+            // First check if item.serial_numbers exists and is an array
+            if (item.serial_numbers && Array.isArray(item.serial_numbers)) {
+              serialNumbers = item.serial_numbers;
+              console.log(`Item ${idx} has ${serialNumbers.length} serial numbers from serial_numbers array`);
+            }
+            // Then check if item.serial_no exists as a fallback
+            else if (item.serial_no) {
+              serialNumbers = [item.serial_no];
+              console.log(`Item ${idx} has serial number from serial_no field: ${item.serial_no}`);
+            }
+
+            // Filter out empty serial numbers
+            serialNumbers = serialNumbers.filter(sn => sn && sn.trim() !== '');
+
+            console.log(`Final serial numbers for item ${idx}:`, serialNumbers);
+
+            return {
+              ...item,
+              id: idx, // Ensure each item has a unique id
+              product_name: item.product_name,
+              quantity: item.quantity,
+              serial_numbers: serialNumbers,
+              unit_price: item.unit_price,
+              discounted_price: item.unit_price * (1 - (item.discount || 0) / 100),
+              warranty: item.warranty,
+              discount: item.discount || 0,
+              subtotal: parseFloat(item.total) || (item.unit_price * item.quantity * (1 - (item.discount || 0) / 100)),
+            };
+          })
         );
+      } else if (typeof currentSale.items === 'string') {
+        // If items is a string (comma-separated list), create a placeholder item
+        // This is a fallback for the list view which only has a string of item names
+        console.log("Items is a string, not an array. Fetching complete sale data would be better.");
+        setCartItems([{
+          id: 0,
+          product_name: currentSale.items,
+          quantity: 1,
+          serial_numbers: [],
+          unit_price: currentSale.total || 0,
+          discounted_price: currentSale.total || 0,
+          warranty: "N/A",
+          discount: 0,
+          subtotal: parseFloat(currentSale.total) || 0
+        }]);
       } else {
         setCartItems([]);
       }
@@ -133,8 +229,115 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
     }
   }, [quantity]);
 
-  //pdf
-  const { toPDF, targetRef } = usePDF({ filename: `Sale-${currentSale?.bill_no || "receipt"}.pdf` });
+  //pdf generation
+  const { toPDF, targetRef } = usePDF({
+    filename: `Sale-${currentSale?.bill_no || "receipt"}.pdf`,
+    options: {
+      // PDF options
+      margin: [5, 5, 5, 5], // minimal margins: top, right, bottom, left
+      format: 'a4',
+      // Configure html2canvas for better PDF generation
+      html2canvas: {
+        scale: 2, // Better resolution
+        useCORS: true, // Allow loading external images
+        logging: true, // Enable logging for debugging
+        removeContainer: false, // Don't remove the container to ensure content is captured
+        backgroundColor: '#ffffff', // White background
+        // Make sure the element is visible during capture
+        onclone: (documentClone) => {
+          // Find the receipt element in the cloned document
+          const receiptElement = documentClone.getElementById('receipt-for-pdf');
+          if (receiptElement) {
+            // Make sure it's visible and positioned properly for capture
+            receiptElement.style.position = 'static';
+            receiptElement.style.visibility = 'visible';
+            receiptElement.style.zIndex = '1';
+            receiptElement.style.width = '100%';
+            receiptElement.style.maxWidth = '210mm';
+            receiptElement.style.margin = '0 auto';
+
+            // Force all text to be black for better printing
+            const allElements = receiptElement.querySelectorAll('*');
+            allElements.forEach(el => {
+              // Set explicit color to black
+              el.style.color = '#000000';
+
+              // Remove any Tailwind color classes
+              if (el.classList) {
+                const classList = Array.from(el.classList);
+                classList.forEach(className => {
+                  if (className.includes('text-') ||
+                      className.includes('bg-') ||
+                      className.includes('border-')) {
+                    el.classList.remove(className);
+                  }
+                });
+              }
+            });
+          } else {
+            console.error('Receipt element not found in cloned document');
+          }
+
+          return documentClone;
+        }
+      }
+    }
+  });
+
+  // Handle print receipt functionality
+  const handlePrint = () => {
+    try {
+      console.log("Generating PDF for sale:", currentSale?.bill_no);
+
+      // Make sure the receipt element is ready for PDF generation
+      const receiptElement = document.getElementById('receipt-for-pdf');
+      if (receiptElement) {
+        // Temporarily make it visible for better capture
+        const originalVisibility = receiptElement.style.visibility;
+        const originalPosition = receiptElement.style.position;
+        const originalZIndex = receiptElement.style.zIndex;
+
+        // Apply styles that make it visible but still out of the normal flow
+        receiptElement.style.visibility = 'visible';
+        receiptElement.style.position = 'absolute';
+        receiptElement.style.zIndex = '-1000';
+
+        // Generate the PDF
+        toPDF()
+          .then(() => {
+            console.log("PDF generated successfully");
+          })
+          .catch(error => {
+            console.error("Error generating PDF:", error);
+
+            // Show detailed error information
+            console.log("Error details:", {
+              message: error.message,
+              stack: error.stack,
+              name: error.name
+            });
+
+            // Fallback: If PDF generation fails, offer to print directly
+            if (confirm("PDF generation failed. Would you like to try printing directly?")) {
+              // Use a simpler approach - just print the current page
+              window.print();
+              alert("Printing the current page. For a better formatted receipt, please try again with the PDF option.");
+            }
+          })
+          .finally(() => {
+            // Restore original styles
+            receiptElement.style.visibility = originalVisibility;
+            receiptElement.style.position = originalPosition;
+            receiptElement.style.zIndex = originalZIndex;
+          });
+      } else {
+        console.error("Receipt element not found");
+        alert("Could not find receipt content to print. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error in handlePrint:", error);
+    }
+  };
 
 
   const fetchAvailableStock = async (productId) => {
@@ -148,7 +351,15 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
         `/purchases/product/${productId}/available`
       );
       const stockData = response.data?.data?.purchases || [];
-      setAvailableStocks(stockData);
+
+      // Ensure selling_price is properly parsed as a number
+      const processedStockData = stockData.map(stock => ({
+        ...stock,
+        selling_price: parseFloat(stock.selling_price) || 0
+      }));
+
+      console.log('Processed stock data:', processedStockData);
+      setAvailableStocks(processedStockData);
       setSelectedStock(null);
     } catch (error) {
       console.error("Error fetching available stock:", error);
@@ -237,7 +448,15 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   };
 
   const calculatePriceAfterDiscount = (price, discountPercent) => {
-    return price * (1 - discountPercent / 100);
+    // Ensure price is a valid number
+    const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
+    const validPrice = typeof numericPrice === 'number' && !isNaN(numericPrice) ? numericPrice : 0;
+
+    // Ensure discount is a valid number
+    const numericDiscount = typeof discountPercent === 'string' ? parseFloat(discountPercent) : discountPercent;
+    const validDiscount = typeof numericDiscount === 'number' && !isNaN(numericDiscount) ? numericDiscount : 0;
+
+    return validPrice * (1 - validDiscount / 100);
   };
 
   const handleAddToCart = () => {
@@ -260,8 +479,11 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
     // }
 
     setErrors({});
+    // Ensure selling_price is a valid number
+    const sellingPrice = parseFloat(selectedStock.selling_price) || 0;
+
     const discountedPrice = calculatePriceAfterDiscount(
-      selectedStock.selling_price,
+      sellingPrice,
       discount
     );
 
@@ -272,7 +494,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
       product_name: selectedProduct.name || selectedProduct.title,
       quantity: quantity,
       serial_numbers: serialNumbers,
-      unit_price: selectedStock.selling_price,
+      unit_price: sellingPrice,
       discounted_price: discountedPrice,
       warranty: selectedStock.warranty, // Important: Include warranty information
       discount: discount,
@@ -296,7 +518,15 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   };
 
   const calculateTotal = () => {
-    return cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+    return cartItems.reduce((sum, item) => {
+      // Ensure subtotal is a valid number
+      const subtotal = typeof item.subtotal === 'number' && !isNaN(item.subtotal)
+        ? item.subtotal
+        : (item.unit_price && item.quantity
+            ? item.unit_price * item.quantity * (1 - (item.discount || 0) / 100)
+            : 0);
+      return sum + subtotal;
+    }, 0);
   };
 
   const handleSubmit = async () => {
@@ -350,12 +580,26 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   };
 
   const formatCurrency = (amount) => {
+    // Parse the amount if it's a string
+    let numericAmount = amount;
+    if (typeof amount === 'string') {
+      numericAmount = parseFloat(amount);
+    }
+
+    // Ensure amount is a valid number
+    const validAmount = typeof numericAmount === 'number' && !isNaN(numericAmount) ? numericAmount : 0;
+
+    // Debug log to check the value
+    if (validAmount === 0 && amount !== 0 && amount !== "0") {
+      console.log('Warning: formatCurrency received invalid amount:', amount, 'type:', typeof amount);
+    }
+
     return new Intl.NumberFormat("en-LK", {
       style: "currency",
       currency: "LKR",
       minimumFractionDigits: 2,
     })
-      .format(amount)
+      .format(validAmount)
       .replace("LKR", "")
       .trim();
   };
@@ -364,6 +608,8 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {/* Add style tag for PDF printing */}
+      <style>{pdfStyles}</style>
       <div className="bg-white w-full h-full max-h-screen flex flex-col">
         <div className="sticky top-0 bg-white p-4 border-b border-gray-200 flex justify-between items-center z-10 shadow-sm">
           <h2 className="text-xl font-semibold">
@@ -547,7 +793,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                                 value={stock.purchase_id}
                               >
                                 {`LKR ${formatCurrency(
-                                  stock.selling_price
+                                  parseFloat(stock.selling_price) || 0
                                 )} | Warranty: ${stock.warranty} months  | (${
                                   stock.remaining_quantity
                                 } available) | Stock in: ${formatDate(
@@ -652,8 +898,8 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                         <input
                           type="text"
                           value={
-                            selectedStock
-                              ? formatCurrency(selectedStock.selling_price)
+                            selectedStock && selectedStock.selling_price
+                              ? formatCurrency(parseFloat(selectedStock.selling_price))
                               : ""
                           }
                           readOnly
@@ -669,10 +915,10 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                         <input
                           type="text"
                           value={
-                            selectedStock
+                            selectedStock && selectedStock.selling_price
                               ? formatCurrency(
                                   calculatePriceAfterDiscount(
-                                    selectedStock.selling_price,
+                                    parseFloat(selectedStock.selling_price),
                                     discount
                                   )
                                 )
@@ -753,6 +999,134 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
 
             {/* Cart */}
             <div className="bg-white rounded-lg shadow-sm p-4 flex-1 flex flex-col overflow-hidden">
+              {/* Receipt content for PDF generation - visible but positioned off-screen */}
+              <div ref={targetRef} id="receipt-for-pdf" style={{ position: 'absolute', visibility: isViewMode ? 'visible' : 'hidden', zIndex: -1000, width: '210mm', backgroundColor: 'white', padding: '20px', border: '1px solid #eee' }}>
+                {/* PDF Header */}
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', color: '#000' }}>
+                    TranceAsiaComputers
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: '12px', color: '#000' }}>
+                    123 Main Street, Ambalantota, Sri Lanka
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: '12px', color: '#000' }}>
+                    Tel: +94 11 123 4567 | Email: tranceasiacomputers@gmail.com
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '12px', color: '#000' }}>
+                    <div><strong>Invoice #: </strong>{currentSale?.bill_no}</div>
+                    <div><strong>Date: </strong>{currentSale?.date ? new Date(currentSale.date).toLocaleDateString() : "N/A"}</div>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#000', textAlign: 'right' }}>
+                    <div><strong>Customer: </strong>{currentSale?.customer_name || "Walk-in Customer"}</div>
+                    <div><strong>Phone: </strong>{currentSale?.customer_phone || "N/A"}</div>
+                    {currentSale?.customer_email && (
+                      <div><strong>Email: </strong>{currentSale.customer_email}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'center', padding: '5px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', marginBottom: '15px', fontWeight: 'bold', color: '#000' }}>
+                  SALES RECEIPT
+                </div>
+
+                <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold', color: '#000' }}>
+                  Order Summary
+                </div>
+
+                {/* Order Items Table */}
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>PRODUCT</th>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>SERIAL NO</th>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>WARRANTY</th>
+                      <th style={{ padding: '5px', textAlign: 'center', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>QTY</th>
+                      <th style={{ padding: '5px', textAlign: 'right', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>DISCOUNT</th>
+                      <th style={{ padding: '5px', textAlign: 'right', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>PRICE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cartItems.length > 0 ? (
+                      cartItems.map((item) => (
+                        <React.Fragment key={`pdf-${item.id}`}>
+                          {/* Main product row */}
+                          <tr style={{ borderBottom: '1px solid #eee' }}>
+                            <td style={{ padding: '5px', fontSize: '12px', color: '#000' }}>{item.product_name}</td>
+                            <td style={{ padding: '5px', fontSize: '12px', color: '#000' }}>
+                              {item.serial_numbers && item.serial_numbers.length > 0 && item.quantity === 1
+                                ? item.serial_numbers[0]
+                                : item.serial_numbers && item.serial_numbers.length > 0
+                                  ? `${item.serial_numbers.length} serials`
+                                  : '-'}
+                            </td>
+                            <td style={{ padding: '5px', fontSize: '12px', color: '#000' }}>{item.warranty} months</td>
+                            <td style={{ padding: '5px', fontSize: '12px', textAlign: 'center', color: '#000' }}>{item.quantity}</td>
+                            <td style={{ padding: '5px', fontSize: '12px', textAlign: 'right', color: '#000' }}>{item.discount}.0%</td>
+                            <td style={{ padding: '5px', fontSize: '12px', textAlign: 'right', color: '#000' }}>{formatCurrency(item.subtotal)}</td>
+                          </tr>
+
+                          {/* Show serial rows for items with quantity > 1 */}
+                          {item.quantity > 1 && item.serial_numbers && item.serial_numbers.length > 0 &&
+                            item.serial_numbers.map((serial, idx) =>
+                              serial && serial.trim() !== "" ? (
+                                <tr key={`pdf-serial-${item.id}-${idx}`} style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
+                                  <td style={{ padding: '3px 5px 3px 15px', fontSize: '10px', color: '#444', fontStyle: 'italic' }}>
+                                    Serial #{idx + 1}
+                                  </td>
+                                  <td style={{ padding: '3px 5px', fontSize: '10px', color: '#000', fontWeight: '500' }}>
+                                    {serial}
+                                  </td>
+                                  <td colSpan={4}></td>
+                                </tr>
+                              ) : null
+                            )
+                          }
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '5px', textAlign: 'center', fontSize: '12px', color: '#000' }}>
+                          No items in this sale
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Totals */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                  <div style={{ textAlign: 'right', fontSize: '12px', color: '#000' }}>
+                    <div style={{ marginBottom: '5px' }}><strong>Total: </strong>LKR {formatCurrency(calculateTotal())}</div>
+                  </div>
+                </div>
+
+                {/* Payment Information and Totals - Styled to match reference image */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', paddingTop: '10px', borderTop: '1px solid #eee' }}>
+                  <div style={{ fontSize: '12px', color: '#000' }}>
+                    <div style={{ marginBottom: '5px' }}><strong>Payment Method:</strong> {currentSale?.payment_method || "Cash"}</div>
+                    <div><strong>Amount Paid:</strong> LKR {formatCurrency(currentSale?.amount_paid || 0)}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: '12px', color: '#000' }}>
+                    <div style={{ marginBottom: '5px' }}><strong>Subtotal:</strong> LKR {formatCurrency(currentSale?.subtotal || calculateTotal())}</div>
+                    {currentSale?.discount > 0 && (
+                      <div style={{ marginBottom: '5px' }}><strong>Discount:</strong> LKR {formatCurrency(currentSale?.discount || 0)}</div>
+                    )}
+                    <div style={{ fontWeight: 'bold' }}><strong>Grand Total:</strong> LKR {formatCurrency(currentSale?.total || calculateTotal())}</div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{ textAlign: 'center', fontSize: '10px', color: '#000', marginTop: '30px' }}>
+                  <div>Thank you for your business!</div>
+                  <div>For returns and exchanges, please bring this receipt within 7 days of purchase.</div>
+                  <div>All electronic items come with manufacturer warranty as specified.</div>
+                  <div>© {new Date().getFullYear()} TranceAsia IMS</div>
+                </div>
+              </div>
+
               <h3 className="text-lg font-medium text-gray-900 mb-3">
                 Order Summary
               </h3>
@@ -802,8 +1176,14 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
                               {/* Show actual serial if quantity=1, otherwise show count */}
-                              {item.quantity === 1 ? (
-                                <span>{item.serial_numbers[0]}</span>
+                              {item.serial_numbers && item.serial_numbers.length > 0 ? (
+                                item.quantity === 1 ? (
+                                  <span className="text-gray-700 font-medium">{item.serial_numbers[0]}</span>
+                                ) : (
+                                  <span className="text-gray-500 cursor-pointer hover:text-blue-500" title="See details below">
+                                    {item.serial_numbers.length} serials
+                                  </span>
+                                )
                               ) : (
                                 <span className="text-gray-500">-</span>
                               )}
@@ -851,8 +1231,8 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                             )}
                           </tr>
 
-                          {/* Only show serial rows if quantity > 1 */}
-                          {item.quantity > 1 &&
+                          {/* Show serial rows for items with quantity > 1 */}
+                          {item.quantity > 1 && item.serial_numbers && item.serial_numbers.length > 0 &&
                             item.serial_numbers.map((serial, idx) =>
                               serial && serial.trim() !== "" ? (
                                 <tr
@@ -862,7 +1242,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                                   <td className="pl-8 py-1 text-xs text-gray-500">
                                     Serial #{idx + 1}
                                   </td>
-                                  <td className="py-1 text-xs text-gray-700">
+                                  <td className="py-1 text-xs text-gray-700 font-medium">
                                     {serial}
                                   </td>
                                   {/* Empty cells to maintain table structure */}
@@ -918,7 +1298,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
               )} */}
 
               {/* Cart total */}
-              <div className="mt-4  pt-4 flex justify-end">
+              <div className="mt-4 pt-4 flex justify-end">
                 <div className="w-1/3">
                   <div className="flex justify-between py-2 font-medium">
                     <span>Total:</span>
@@ -926,6 +1306,8 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                   </div>
                 </div>
               </div>
+
+              {/* No PDF Footer here anymore - moved to the dedicated receipt component */}
 
               {/* {errors.cart && (
                 <p className="mt-1 text-sm text-red-600">{errors.cart}</p>
@@ -1141,14 +1523,8 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                 <div className="mt-6">
                   <button
                     type="button"
-                    onClick={() => {
-                      // Print functionality would go here
-                      console.log(
-                        "Print receipt for sale:",
-                        currentSale.bill_no
-                      );
-                    }}
-                    className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    onClick={handlePrint}
+                    className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   >
                     Print Receipt
                   </button>

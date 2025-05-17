@@ -174,6 +174,12 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
     const product = option ? option.raw : null;
     setSelectedProduct(product);
 
+    // If a supplier is already selected, don't allow changing the product
+    if (selectedSupplier) {
+      console.log("Supplier already selected. Cannot change product.");
+      return;
+    }
+
     if (product) {
       setFormData((prevFormData) => ({
         ...prevFormData,
@@ -183,16 +189,43 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
       setSelectedSupplier(null);
 
       try {
-        const response = await API.get(
-          `/products/${product.product_id || product.id}/suppliers`
-        );
-        const relatedSuppliers = response.data?.data?.suppliers || [];
+        const productId = product.product_id || product.id;
+        console.log("Fetching suppliers for product ID:", productId);
 
-        setFilteredSuppliers(relatedSuppliers);
+        const response = await API.get(`/products/${productId}/suppliers`);
+
+        // The backend returns suppliers directly in the response data
+        // We need to handle this format correctly
+        let relatedSuppliers = [];
+
+        if (Array.isArray(response.data)) {
+          // If response.data is an array, use it directly
+          relatedSuppliers = response.data;
+        } else if (response.data?.data?.suppliers) {
+          // If response has the expected nested structure
+          relatedSuppliers = response.data.data.suppliers;
+        } else if (response.data?.suppliers) {
+          // Alternative structure
+          relatedSuppliers = response.data.suppliers;
+        } else {
+          // Fallback to the raw response if it's an array
+          relatedSuppliers = Array.isArray(response.data) ? response.data : [];
+        }
+
+        console.log("Related suppliers:", relatedSuppliers);
+
+        // Format suppliers to ensure they have consistent properties
+        const formattedSuppliers = relatedSuppliers.map(supplier => ({
+          ...supplier,
+          id: supplier.supplier_id || supplier.id,
+          supplier_id: supplier.supplier_id || supplier.id
+        }));
+
+        setFilteredSuppliers(formattedSuppliers);
 
         // Auto-select if only one supplier available
-        if (relatedSuppliers.length === 1) {
-          const onlySupplier = relatedSuppliers[0];
+        if (formattedSuppliers.length === 1) {
+          const onlySupplier = formattedSuppliers[0];
           setFormData((prevFormData) => ({
             ...prevFormData,
             supplier_id: onlySupplier.supplier_id || onlySupplier.id,
@@ -219,13 +252,22 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
 
   // Handle supplier selection
   const handleSupplierSelect = (option) => {
+    // If a supplier is already selected, don't allow changes
+    if (selectedSupplier) {
+      console.log("Supplier already selected and cannot be changed");
+      return;
+    }
+
     const supplier = option ? option.raw : null;
     setSelectedSupplier(supplier);
 
     if (supplier) {
+      const supplierId = supplier.supplier_id || supplier.id || "";
+      console.log("Selected supplier:", supplier, "with ID:", supplierId);
+
       setFormData((prev) => ({
         ...prev,
-        supplier_id: supplier.supplier_id || supplier.id || "",
+        supplier_id: supplierId,
       }));
     } else {
       setFormData((prev) => ({
@@ -274,7 +316,8 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
               onChange={handleProductSelect}
               placeholder="Search or select a product"
               isSearchable
-              isClearable
+              isClearable={!selectedSupplier} // Disable clear button once supplier is selected
+              isDisabled={selectedSupplier} // Disable the entire dropdown if supplier is already selected
               classNamePrefix="react-select"
               menuPlacement="auto"
             />
@@ -287,29 +330,51 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
               Supplier <span className="text-red-500">*</span>
+              {selectedSupplier && (
+                <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="inline-block h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Locked
+                </span>
+              )}
             </label>
-            <Select
-              options={supplierOptions}
-              value={
-                supplierOptions.find(
-                  (opt) => opt.value === formData.supplier_id
-                ) || null
-              }
-              onChange={handleSupplierSelect}
-              placeholder="Search or select a supplier"
-              isSearchable
-              isClearable
-              classNamePrefix="react-select"
-              menuPlacement="auto"
-              isDisabled={!selectedProduct}
-              noOptionsMessage={() =>
-                selectedProduct
-                  ? "No suppliers found for selected product"
-                  : "Select a product first"
-              }
-            />
+            <div className={`relative ${selectedSupplier ? 'bg-gray-50' : ''}`}>
+              <Select
+                options={supplierOptions}
+                value={
+                  supplierOptions.find(
+                    (opt) => opt.value === formData.supplier_id
+                  ) || null
+                }
+                onChange={handleSupplierSelect}
+                placeholder="Supplier"
+                isSearchable
+                isClearable={!selectedSupplier} // Disable clear button once supplier is selected
+                classNamePrefix="react-select"
+                menuPlacement="auto"
+                isDisabled={!selectedProduct || selectedSupplier} // Disable the entire dropdown if supplier is already selected
+                noOptionsMessage={() =>
+                  selectedProduct
+                    ? "No suppliers found for selected product"
+                    : "Select a product first"
+                }
+              />
+              {selectedSupplier && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+              )}
+            </div>
             {errors.supplier_id && (
               <p className="mt-1 text-sm text-red-500">{errors.supplier_id}</p>
+            )}
+            {selectedSupplier && (
+              <p className="mt-1 text-xs text-gray-500">
+                Once a supplier is selected, it cannot be changed for this purchase.
+              </p>
             )}
           </div>
 

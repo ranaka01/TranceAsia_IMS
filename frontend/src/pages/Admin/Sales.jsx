@@ -13,7 +13,7 @@ const Sales = () => {
   const [error, setError] = useState(null);
   const [isAddSaleModalOpen, setIsAddSaleModalOpen] = useState(false);
   const [currentSale, setCurrentSale] = useState(null);
-  
+
 
   // Fetch sales from the API
   const fetchSales = async () => {
@@ -77,9 +77,30 @@ const Sales = () => {
     setIsAddSaleModalOpen(true);
   };
 
-  const handleViewSale = (sale) => {
-    setCurrentSale(sale);
-    setIsAddSaleModalOpen(true);
+  const handleViewSale = async (sale) => {
+    setIsLoading(true);
+    try {
+      // Fetch the complete sale data with items array
+      const response = await API.get(`/sales/${sale.bill_no}`);
+      const fullSaleData = response.data?.data?.sale;
+
+      if (fullSaleData) {
+        setCurrentSale(fullSaleData);
+        setIsAddSaleModalOpen(true);
+      } else {
+        console.error("Failed to fetch complete sale data");
+        // Still show the modal with the basic data we have
+        setCurrentSale(sale);
+        setIsAddSaleModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Error fetching sale details:", error);
+      // Fall back to using the row data
+      setCurrentSale(sale);
+      setIsAddSaleModalOpen(true);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCloseModal = () => {
@@ -93,8 +114,8 @@ const Sales = () => {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-LK', { 
-      style: 'currency', 
+    return new Intl.NumberFormat('en-LK', {
+      style: 'currency',
       currency: 'LKR',
       minimumFractionDigits: 2
     }).format(amount).replace('LKR', '').trim();
