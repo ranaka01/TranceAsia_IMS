@@ -164,12 +164,11 @@ class Sale {
   }
   
   // Create a new sale with items
-  static async create({ customer_id, items, payment_method, amount_paid, change_amount, created_by }) {
-    // Use a transaction to ensure data consistency
+   static async create({ customer_id, items, payment_method, amount_paid, change_amount, created_by }) {
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
-      
+
       // Calculate total
       let total = 0;
       for (const item of items) {
@@ -177,61 +176,60 @@ class Sale {
           'SELECT selling_price FROM purchases WHERE purchase_id = ?',
           [item.purchase_id]
         );
-        
-        if (purchase.length === 0) {
-          throw new Error(`Purchase with ID ${item.purchase_id} not found`);
-        }
-        
+        if (purchase.length === 0) throw new Error(`Purchase with ID ${item.purchase_id} not found`);
         const itemTotal = purchase[0].selling_price * item.quantity * (1 - (item.discount || 0) / 100);
         total += itemTotal;
       }
-      
+
       // Create invoice
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = format(new Date(), 'yyyy-MM-dd HH:mm:ss'); // date with time
       const [invoiceResult] = await connection.query(
-        `INSERT INTO invoice 
-          (customer_id, date, total, created_by, payment_method)
+        `INSERT INTO invoice (customer_id, date, total, created_by, payment_method)
          VALUES (?, ?, ?, ?, ?)`,
         [customer_id, today, total, created_by, payment_method]
       );
-      
       const invoiceNo = invoiceResult.insertId;
-      
-      // Add sale items
+
+      // Add sale items and serials
       for (const item of items) {
-        // Add sales records
+        // Insert sale item
         const [salesResult] = await connection.query(
           `INSERT INTO sales 
             (product_id, purchase_id, quantity, date, serial_no, customer_id, discount, invoice_no)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            item.product_id, 
-            item.purchase_id, 
-            item.quantity, 
-            today, 
-            item.serial_numbers ? item.serial_numbers.join(', ') : null, 
+            item.product_id,
+            item.purchase_id,
+            item.quantity,
+            today,
+            null, // serial_no field now unused, replaced by sale_serials table
             customer_id,
             item.discount || 0,
             invoiceNo
           ]
         );
-        
+        const saleId = salesResult.insertId;
+
+        // Insert serial numbers if provided
+        if (item.serial_numbers && Array.isArray(item.serial_numbers)) {
+          for (const serial of item.serial_numbers) {
+            await connection.query(
+              `INSERT INTO sale_serials (sale_id, serial_number) VALUES (?, ?)`,
+              [saleId, serial]
+            );
+          }
+        }
+
         // Update remaining quantity in purchases
         await connection.query(
-          `UPDATE purchases 
-           SET remaining_quantity = remaining_quantity - ? 
-           WHERE purchase_id = ?`,
+          `UPDATE purchases SET remaining_quantity = remaining_quantity - ? WHERE purchase_id = ?`,
           [item.quantity, item.purchase_id]
         );
       }
-      
-      // Commit the transaction
+
       await connection.commit();
-      
-      // Return the created sale with details
       return this.findById(invoiceNo);
     } catch (error) {
-      // Rollback the transaction on error
       await connection.rollback();
       throw new Error(`Error creating sale: ${error.message}`);
     } finally {

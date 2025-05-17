@@ -11,6 +11,7 @@ router.use(authenticateUser);
 // Routes accessible by all authenticated users
 router.get('/', purchaseController.getAllPurchases);
 router.get('/:id', purchaseController.getPurchase);
+router.get('/product/:productId/available', purchaseController.getAvailablePurchasesByProduct);
 
 // Routes accessible only by admin users
 router.post('/', authorizeRole(['Admin']), purchaseController.createPurchase);

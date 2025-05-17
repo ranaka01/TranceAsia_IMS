@@ -165,7 +165,7 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
 
   const supplierOptions = filteredSuppliers.map((s) => ({
     value: s.supplier_id || s.id,
-    label: s.name || s.shop_name || "Unnamed Supplier",
+    label: s.name || "Unnamed Supplier",
     raw: s,
   }));
 
@@ -186,22 +186,8 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
         const response = await API.get(
           `/products/${product.product_id || product.id}/suppliers`
         );
+        const relatedSuppliers = response.data?.data?.suppliers || [];
 
-        // The backend returns suppliers directly without wrapping in data.suppliers
-        // Check different possible response structures
-        let relatedSuppliers = [];
-        if (Array.isArray(response.data)) {
-          // If response.data is already an array of suppliers
-          relatedSuppliers = response.data;
-        } else if (response.data?.data?.suppliers) {
-          // If response has nested data.suppliers structure
-          relatedSuppliers = response.data.data.suppliers;
-        } else if (response.data?.suppliers) {
-          // If response has suppliers directly in data
-          relatedSuppliers = response.data.suppliers;
-        }
-
-        console.log("Suppliers fetched for product:", relatedSuppliers);
         setFilteredSuppliers(relatedSuppliers);
 
         // Auto-select if only one supplier available
@@ -237,13 +223,9 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
     setSelectedSupplier(supplier);
 
     if (supplier) {
-      // Get supplier ID, handling different possible formats
-      const supplierId = supplier.supplier_id || supplier.id || "";
-      console.log("Selected supplier:", supplier, "with ID:", supplierId);
-
       setFormData((prev) => ({
         ...prev,
-        supplier_id: supplierId,
+        supplier_id: supplier.supplier_id || supplier.id || "",
       }));
     } else {
       setFormData((prev) => ({
@@ -363,14 +345,9 @@ const AddPurchaseModal = ({ isOpen, onClose, onSave }) => {
               disabled={isSubmitting}
               className="w-full px-3 py-2 border border-gray-300 rounded"
             >
-              <option value="No Warranty">No Warranty</option>
-              <option value="3 months">3 months</option>
-              <option value="6 months">6 months</option>
               <option value="12 months">12 months</option>
               <option value="24 months">24 months</option>
               <option value="36 months">36 months</option>
-              <option value="Service warranty only">Service Warranty only</option>
-
             </select>
           </div>
 

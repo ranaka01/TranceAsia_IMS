@@ -13,6 +13,7 @@ const Sales = () => {
   const [error, setError] = useState(null);
   const [isAddSaleModalOpen, setIsAddSaleModalOpen] = useState(false);
   const [currentSale, setCurrentSale] = useState(null);
+  
 
   // Fetch sales from the API
   const fetchSales = async () => {

@@ -193,3 +193,14 @@ exports.deletePurchase = async (req, res) => {
     });
   }
 };
+
+
+exports.getAvailablePurchasesByProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const purchases = await Purchase.findAvailableStockByProduct(productId);
+    res.json({ status: 'success', data: { purchases } });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};

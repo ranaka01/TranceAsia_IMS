@@ -81,25 +81,16 @@ exports.getSaleById = async (req, res) => {
 exports.createSale = async (req, res) => {
   try {
     const { customer, items, payment_method, amount_paid, change_amount } = req.body;
-    
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Sale must include at least one item'
-      });
+      return res.status(400).json({ status: 'fail', message: 'Sale must include at least one item' });
+    }
+    if (!customer || !customer.phone) {
+      return res.status(400).json({ status: 'fail', message: 'Customer phone number is required' });
     }
 
-    if (!customer || !customer.phone) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Customer phone number is required'
-      });
-    }
-    
     // Find or create customer
     let customerId;
     const existingCustomer = await Customer.findByPhone(customer.phone);
-    
     if (existingCustomer) {
       customerId = existingCustomer.id;
     } else {
@@ -110,44 +101,26 @@ exports.createSale = async (req, res) => {
       });
       customerId = newCustomer.id;
     }
-    
+
     // Validate each item
     for (const item of items) {
-      // Check if product exists
       const product = await Product.findById(item.product_id);
       if (!product) {
-        return res.status(400).json({
-          status: 'fail',
-          message: `Product with ID ${item.product_id} not found`
-        });
+        return res.status(400).json({ status: 'fail', message: `Product with ID ${item.product_id} not found` });
       }
-      
-      // Check if purchase exists and has enough stock
       const purchase = await Purchase.findById(item.purchase_id);
       if (!purchase) {
-        return res.status(400).json({
-          status: 'fail',
-          message: `Purchase with ID ${item.purchase_id} not found`
-        });
+        return res.status(400).json({ status: 'fail', message: `Purchase with ID ${item.purchase_id} not found` });
       }
-      
       if (purchase.remaining_quantity < item.quantity) {
-        return res.status(400).json({
-          status: 'fail',
-          message: `Not enough stock for product ${product.name} (${purchase.remaining_quantity} available)`
-        });
+        return res.status(400).json({ status: 'fail', message: `Not enough stock for product ${product.name} (${purchase.remaining_quantity} available)` });
       }
-      
-      // Validate serial numbers if product requires them
       if (product.requires_serial && (!item.serial_numbers || item.serial_numbers.length !== item.quantity)) {
-        return res.status(400).json({
-          status: 'fail',
-          message: `Serial numbers are required for product ${product.name} and must match quantity`
-        });
+        return res.status(400).json({ status: 'fail', message: `Serial numbers are required for product ${product.name} and must match quantity` });
       }
     }
-    
-    // Create sale
+
+    // Create sale (serials handled in model)
     const saleData = {
       customer_id: customerId,
       items: items.map(item => ({
@@ -160,36 +133,22 @@ exports.createSale = async (req, res) => {
       payment_method: payment_method || 'Cash',
       amount_paid: amount_paid || 0,
       change_amount: change_amount || 0,
-      created_by: req.user.id // From authentication middleware
+      created_by: req.user.id
     };
-    
+
     const sale = await Sale.create(saleData);
-    
+
     res.status(201).json({
       status: 'success',
-      data: {
-        sale
-      }
+      data: { sale }
     });
   } catch (error) {
-    console.error("Error in createSale:", error);
-    
-    // Handle validation errors
-    if (error.message.includes('required') || 
-        error.message.includes('invalid') || 
-        error.message.includes('duplicate')) {
-      return res.status(400).json({
-        status: 'fail',
-        message: error.message
-      });
-    }
-    
-    res.status(500).json({
-      status: 'error',
-      message: error.message || 'Internal server error'
-    });
+    res.status(500).json({ status: 'error', message: error.message || 'Internal server error' });
   }
 };
+
+// In your Sale model or controller
+
 
 // Update a sale
 exports.updateSale = async (req, res) => {
