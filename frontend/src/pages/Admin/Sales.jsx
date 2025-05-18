@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { format } from "date-fns";
+import React, { useState, useEffect, useRef } from "react";
+import { format, startOfDay, endOfDay } from "date-fns";
 import Button from "../../components/UI/Button";
 import SearchInput from "../../components/UI/SearchInput";
 import AddSaleModal from "./AddSaleModal";
 import API from "../../utils/api";
+import { FaCalendarAlt, FaTimes } from "react-icons/fa";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
@@ -13,31 +16,60 @@ const Sales = () => {
   const [error, setError] = useState(null);
   const [isAddSaleModalOpen, setIsAddSaleModalOpen] = useState(false);
   const [currentSale, setCurrentSale] = useState(null);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const datePickerRef = useRef(null);
 
-
-  // Fetch sales from the API
-  const fetchSales = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await API.get("sales/");
-      const data = response.data?.data?.sales || [];
-      setSales(data);
-      setFilteredSales(data);
-    } catch (err) {
-      console.error("Error fetching sales:", err);
-      setError("Failed to load sales. Please try again later.");
-      setSales([]);
-      setFilteredSales([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load sales when component mounts
+  // Close date picker when clicking outside
   useEffect(() => {
-    fetchSales();
+    function handleClickOutside(event) {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target)) {
+        setIsDatePickerOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
+
+  // The fetchSales functionality has been moved to the useEffect hook
+
+  // Load sales when component mounts or date range changes
+  useEffect(() => {
+    const getSales = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Build query parameters for date filtering
+        const params = new URLSearchParams();
+        if (startDate) {
+          params.append('startDate', startOfDay(startDate).toISOString());
+        }
+        if (endDate) {
+          params.append('endDate', endOfDay(endDate).toISOString());
+        }
+
+        const queryString = params.toString();
+        const url = queryString ? `sales/?${queryString}` : "sales/";
+
+        const response = await API.get(url);
+        const data = response.data?.data?.sales || [];
+        setSales(data);
+        setFilteredSales(data);
+      } catch (err) {
+        console.error("Error fetching sales:", err);
+        setError("Failed to load sales. Please try again later.");
+        setSales([]);
+        setFilteredSales([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    getSales();
+  }, [startDate, endDate]);
 
   // Filter sales based on search query
   const performSearch = (query) => {
@@ -108,9 +140,38 @@ const Sales = () => {
     setCurrentSale(null);
   };
 
-  const handleSaleSaved = (newSale) => {
-    fetchSales();
+  const handleSaleSaved = () => {
+    // Trigger a refetch of sales data
+    setStartDate(prev => {
+      // This forces the useEffect to run again
+      return prev;
+    });
     setIsAddSaleModalOpen(false);
+  };
+
+  // Toggle date picker visibility
+  const toggleDatePicker = () => {
+    setIsDatePickerOpen(prev => !prev);
+  };
+
+  // Handle date changes
+  const handleDateChange = (dates) => {
+    const [start, end] = dates;
+    setStartDate(start);
+    setEndDate(end);
+
+    if (start && end) {
+      // Close the date picker when a complete range is selected
+      setIsDatePickerOpen(false);
+      // The useEffect hook will trigger fetchSales when startDate or endDate changes
+    }
+  };
+
+  // Clear date filter
+  const clearDateFilter = () => {
+    setStartDate(null);
+    setEndDate(null);
+    // The useEffect hook will trigger the API call when state changes
   };
 
   const formatCurrency = (amount) => {
@@ -125,11 +186,50 @@ const Sales = () => {
     <div className="p-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-semibold">Sales</h1>
-        <div className="flex items-center">
-          <div className="mr-2">
-            <label className="text-sm text-gray-600 mr-2">All time</label>
-            <input type="checkbox" className="form-checkbox h-4 w-4 text-blue-600" />
-          </div>
+        <div className="flex items-center relative" ref={datePickerRef}>
+          {/* Date filter indicator */}
+          {(startDate || endDate) && (
+            <div className="flex items-center mr-3 bg-blue-50 px-3 py-1 rounded-md">
+              <span className="text-sm text-blue-700">
+                {startDate && endDate
+                  ? `${format(startDate, 'MMM dd, yyyy')} - ${format(endDate, 'MMM dd, yyyy')}`
+                  : startDate
+                  ? `From ${format(startDate, 'MMM dd, yyyy')}`
+                  : `Until ${format(endDate, 'MMM dd, yyyy')}`}
+              </span>
+              <button
+                onClick={clearDateFilter}
+                className="ml-2 text-blue-500 hover:text-blue-700"
+                title="Clear date filter"
+              >
+                <FaTimes size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Calendar icon button */}
+          <button
+            onClick={toggleDatePicker}
+            className="flex items-center justify-center p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            title="Filter by date"
+          >
+            <FaCalendarAlt className="text-gray-600" />
+          </button>
+
+          {/* Date picker dropdown */}
+          {isDatePickerOpen && (
+            <div className="absolute right-0 top-full mt-1 z-10 bg-white shadow-lg rounded-md p-4 border border-gray-200">
+              <DatePicker
+                selected={startDate}
+                onChange={handleDateChange}
+                startDate={startDate}
+                endDate={endDate}
+                selectsRange
+                inline
+                calendarClassName="bg-white"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -150,7 +250,10 @@ const Sales = () => {
           {error}
           <button
             className="ml-2 underline"
-            onClick={fetchSales}
+            onClick={() => {
+              // Force a refetch by triggering the useEffect
+              setStartDate(prev => prev);
+            }}
           >
             Try Again
           </button>
