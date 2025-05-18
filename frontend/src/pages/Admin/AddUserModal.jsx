@@ -130,15 +130,15 @@ const AddUserModal = ({
     const roleValid = validateField('Role', formData.Role);
     const passwordValid = validateField('Password', formData.Password);
     const confirmPasswordValid = validateField('confirmPassword', formData.confirmPassword);
-    
+
     return (
-      usernameValid && 
-      firstNameValid && 
-      lastNameValid && 
-      emailValid && 
-      phoneValid && 
-      roleValid && 
-      passwordValid && 
+      usernameValid &&
+      firstNameValid &&
+      lastNameValid &&
+      emailValid &&
+      phoneValid &&
+      roleValid &&
+      passwordValid &&
       confirmPasswordValid
     );
   };
@@ -182,7 +182,7 @@ const AddUserModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-md p-6 w-full max-w-md max-h-screen overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Add New User</h2>
@@ -200,7 +200,7 @@ const AddUserModal = ({
               {errors.general}
             </div>
           )}
-          
+
           {/* First Name */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
@@ -219,7 +219,7 @@ const AddUserModal = ({
             />
             {errors.first_name && <p className="mt-1 text-sm text-red-500">{errors.first_name}</p>}
           </div>
-          
+
           {/* Last Name */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
@@ -238,7 +238,7 @@ const AddUserModal = ({
             />
             {errors.last_name && <p className="mt-1 text-sm text-red-500">{errors.last_name}</p>}
           </div>
-          
+
           {/* Username */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
@@ -257,7 +257,7 @@ const AddUserModal = ({
             />
             {errors.Username && <p className="mt-1 text-sm text-red-500">{errors.Username}</p>}
           </div>
-          
+
           {/* Email */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
@@ -276,7 +276,7 @@ const AddUserModal = ({
             />
             {errors.Email && <p className="mt-1 text-sm text-red-500">{errors.Email}</p>}
           </div>
-          
+
           {/* Phone */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
@@ -295,7 +295,7 @@ const AddUserModal = ({
             />
             {errors.Phone && <p className="mt-1 text-sm text-red-500">{errors.Phone}</p>}
           </div>
-          
+
           {/* Role */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
@@ -319,7 +319,7 @@ const AddUserModal = ({
             </select>
             {errors.Role && <p className="mt-1 text-sm text-red-500">{errors.Role}</p>}
           </div>
-          
+
           {/* Password */}
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
@@ -338,7 +338,7 @@ const AddUserModal = ({
             />
             {errors.Password && <p className="mt-1 text-sm text-red-500">{errors.Password}</p>}
           </div>
-          
+
           {/* Confirm Password */}
           <div className="mb-6">
             <label className="block text-gray-700 mb-2">
@@ -357,7 +357,7 @@ const AddUserModal = ({
             />
             {errors.confirmPassword && <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>}
           </div>
-          
+
           {/* Submit Button */}
           <button
             type="submit"

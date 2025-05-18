@@ -42,16 +42,16 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
     if (!phone || phone.trim() === '') {
       return "Phone number is required";
     }
-    
+
     // Remove spaces for validation
     const cleanPhone = phone.replace(/\s+/g, '');
-    
+
     // Sri Lankan mobile numbers:
     // 1. Start with '07' followed by 8 more digits
     // 2. Or international format +94 7X XXXXXXX
     const localPattern = /^07[0-9]{8}$/;
     const intlPattern = /^\+947[0-9]{8}$/;
-    
+
     if (localPattern.test(cleanPhone) || intlPattern.test(cleanPhone)) {
       return "";
     } else {
@@ -64,7 +64,7 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
     if (!email || email.trim() === '') {
       return "";  // Email is optional for customers
     }
-    
+
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (emailPattern.test(email)) {
       return "";
@@ -80,7 +80,7 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
       [name]: value
     });
 
-    // If form was already submitted once, validate on change 
+    // If form was already submitted once, validate on change
     // to give immediate feedback
     if (isSubmitted) {
       validateField(name, value);
@@ -90,7 +90,7 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
   // Validate a specific field
   const validateField = (name, value) => {
     let error = "";
-    
+
     switch (name) {
       case 'name':
         if (!value || value.trim() === '') {
@@ -99,24 +99,24 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
           error = "Customer name must be at least 3 characters";
         }
         break;
-        
+
       case 'phone':
         error = validateMobileNumber(value);
         break;
-        
+
       case 'email':
         error = validateEmail(value);
         break;
-        
+
       default:
         break;
     }
-    
+
     setErrors(prev => ({
       ...prev,
       [name]: error
     }));
-    
+
     return error === "";
   };
 
@@ -125,24 +125,47 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
     const nameValid = validateField('name', formData.name);
     const phoneValid = validateField('phone', formData.phone);
     const emailValid = validateField('email', formData.email);
-    
+
     return nameValid && phoneValid && emailValid;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Set form as submitted to show all errors
     setIsSubmitted(true);
-    
+
     const isValid = validateForm();
-    
+
     if (isValid) {
       try {
         setIsLoading(true);
         // Pass the data to the parent component's onSave handler
-        onSave(formData);
-        // Don't close the modal here - let the parent component do it after successful API call
+        const result = await onSave(formData);
+
+        // Check if there was an error
+        if (result && result.error) {
+          setErrors(prev => ({
+            ...prev,
+            general: result.error
+          }));
+        } else if (result && result.success && result.message) {
+          // If there's a success message, show it briefly and then close the modal
+          setErrors(prev => ({
+            ...prev,
+            general: result.message,
+            isSuccess: true // Flag to style the message as success
+          }));
+
+          // Close the modal after a short delay to show the success message
+          setTimeout(() => {
+            onClose();
+          }, 1500);
+        } else if (result && result.success) {
+          // If success with no message, just close the modal
+          onClose();
+        }
+        // Don't close the modal here if there was an error - let the user try again
       } catch (error) {
         console.error("Error creating customer:", error);
         if (error.response && error.response.data) {
@@ -173,26 +196,26 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-md p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">New Customer</h2>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
             disabled={isLoading}
           >
             ✕
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} noValidate>
           {errors.general && (
-            <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div className={`mb-4 p-2 ${errors.isSuccess ? 'bg-green-100 border border-green-400 text-green-700' : 'bg-red-100 border border-red-400 text-red-700'} rounded`}>
               {errors.general}
             </div>
           )}
-          
+
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
               Customer Name <span className="text-red-500">*</span>
@@ -212,7 +235,7 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
               <p className="mt-1 text-sm text-red-500">{errors.name}</p>
             )}
           </div>
-          
+
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
               Mobile Number <span className="text-red-500">*</span>
@@ -232,7 +255,7 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
               <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
             )}
           </div>
-          
+
           <div className="mb-4">
             <label className="block text-gray-700 mb-2">
               Email
@@ -251,7 +274,7 @@ const AddCustomerModal = ({ isOpen, onClose, validationErrors, onSave, loading =
               <p className="mt-1 text-sm text-red-500">{errors.email}</p>
             )}
           </div>
-          
+
           <button
             type="submit"
             className={`w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}

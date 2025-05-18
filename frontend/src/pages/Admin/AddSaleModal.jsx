@@ -1,6 +1,7 @@
 import { usePDF } from 'react-to-pdf';
 import React, { useState, useEffect, useRef } from "react";
 import API from "../../utils/api";
+import AddCustomerModal from "./AddCustomerModal";
 
 // CSS styles for PDF printing - using only basic CSS compatible with PDF generation
 const pdfStyles = `
@@ -79,6 +80,9 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isNewCustomerMode, setIsNewCustomerMode] = useState(false);
   const [isProductPanelCollapsed, setIsProductPanelCollapsed] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [isCustomerSelected, setIsCustomerSelected] = useState(false);
+  const customerDropdownRef = useRef(null);
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -90,6 +94,23 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
     console.log("currentSale in modal:", currentSale);
     if (currentSale) {
       setIsViewMode(true);
+
+      // Log invoice information for debugging
+      console.log("Invoice information:", {
+        invoice_no: currentSale.invoice_no,
+        bill_no: currentSale.bill_no
+      });
+
+      // Set customer information from currentSale
+      if (currentSale.customer_name) {
+        setCustomerName(currentSale.customer_name);
+      }
+      if (currentSale.customer_phone) {
+        setCustomerPhone(currentSale.customer_phone);
+      }
+      if (currentSale.customer_email) {
+        setCustomerEmail(currentSale.customer_email);
+      }
 
       // Set cartItems from currentSale.items if available
       if (Array.isArray(currentSale.items)) {
@@ -148,6 +169,15 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
         }]);
       } else {
         setCartItems([]);
+      }
+
+      // After setting up all the data, check if we need to generate a PDF
+      // This is for when viewing an existing sale and the user clicks "Print Receipt"
+      if (currentSale.generatePdf) {
+        // Small delay to ensure all state is updated
+        setTimeout(() => {
+          handlePrint();
+        }, 300);
       }
     } else {
       setIsViewMode(false);
@@ -212,6 +242,25 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
       setChangeAmount(0);
     }
   }, [amountPaid, cartItems]);
+
+  // Handle click outside of customer dropdown to close it
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target)) {
+        setIsSearchingCustomer(false);
+      }
+    }
+
+    // Add event listener when dropdown is open
+    if (isSearchingCustomer) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    // Clean up the event listener
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isSearchingCustomer]);
 
   // Update serials array length when quantity changes
   useEffect(() => {
@@ -291,17 +340,35 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
 
       // Make sure the receipt element is ready for PDF generation
       const receiptElement = document.getElementById('receipt-for-pdf');
-      if (receiptElement) {
-        // Temporarily make it visible for better capture
-        const originalVisibility = receiptElement.style.visibility;
-        const originalPosition = receiptElement.style.position;
-        const originalZIndex = receiptElement.style.zIndex;
+      if (!receiptElement) {
+        console.error("Receipt element not found - cannot generate PDF");
+        return;
+      }
 
-        // Apply styles that make it visible but still out of the normal flow
-        receiptElement.style.visibility = 'visible';
-        receiptElement.style.position = 'absolute';
-        receiptElement.style.zIndex = '-1000';
+      // Log the current state of the receipt for debugging
+      console.log("Receipt data:", {
+        invoiceNo: currentSale?.invoice_no,
+        billNo: currentSale?.bill_no,
+        date: currentSale?.date,
+        customerName: currentSale?.customer_name || customerName,
+        customerPhone: currentSale?.customer_phone || customerPhone,
+        customerEmail: currentSale?.customer_email || customerEmail,
+        items: cartItems.length,
+        isViewMode: isViewMode
+      });
 
+      // Store original styles
+      const originalVisibility = receiptElement.style.visibility;
+      const originalPosition = receiptElement.style.position;
+      const originalZIndex = receiptElement.style.zIndex;
+
+      // Apply styles that make it visible but still out of the normal flow
+      receiptElement.style.visibility = 'visible';
+      receiptElement.style.position = 'absolute';
+      receiptElement.style.zIndex = '-1000';
+
+      // Force a small delay to ensure the DOM is updated
+      setTimeout(() => {
         // Generate the PDF
         toPDF()
           .then(() => {
@@ -330,10 +397,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
             receiptElement.style.position = originalPosition;
             receiptElement.style.zIndex = originalZIndex;
           });
-      } else {
-        console.error("Receipt element not found");
-        alert("Could not find receipt content to print. Please try again.");
-      }
+      }, 50); // Small delay to ensure DOM updates
     } catch (error) {
       console.error("Error in handlePrint:", error);
     }
@@ -386,16 +450,25 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
     setCustomerEmail(customer.email || "");
     setIsSearchingCustomer(false);
     setIsNewCustomerMode(false);
+    setIsCustomerSelected(true); // Mark that a customer has been selected
   };
 
-  const handleNewCustomer = () => {
-    setIsNewCustomerMode(true);
+  // Function to clear customer information
+  const handleClearCustomer = () => {
     setCustomerName("");
     setCustomerPhone("");
     setCustomerEmail("");
+    setIsCustomerSelected(false);
     setIsSearchingCustomer(false);
   };
 
+  const handleNewCustomer = () => {
+    // Open the AddCustomerModal instead of using the inline form
+    setIsAddCustomerModalOpen(true);
+    setIsSearchingCustomer(false);
+  };
+
+  // This function is used by the inline form (keeping for backward compatibility)
   const handleSaveNewCustomer = async () => {
     if (!customerName || !customerPhone) {
       setErrors({
@@ -406,11 +479,19 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
       return;
     }
     try {
+      // Format the phone number to ensure it's in the correct format
+      // Remove any spaces from the phone number
+      const formattedPhone = customerPhone.replace(/\s+/g, "");
+
       const customerData = {
         name: customerName,
-        phone: customerPhone,
-        email: customerEmail || null,
+        phone: formattedPhone,
+        email: customerEmail && customerEmail.trim() !== "" ? customerEmail : null,
       };
+
+      // Log the data being sent to the API for debugging
+      console.log("Sending customer data to API:", customerData);
+
       const response = await API.post("/customers", customerData);
       const newCustomer = response.data?.data?.customer;
       if (newCustomer) {
@@ -421,10 +502,186 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
       setErrors({});
     } catch (error) {
       console.error("Error creating customer:", error);
+      // Log more details about the error
+      if (error.response) {
+        console.error("Error response data:", error.response.data);
+        console.error("Error response status:", error.response.status);
+      }
+
       setErrors({
         ...errors,
-        customerSubmit: "Failed to create customer. Please try again.",
+        customerSubmit: error.response?.data?.message || "Failed to create customer. Please try again.",
       });
+    }
+  };
+
+  // This function is called when a customer is saved via the AddCustomerModal
+  const handleAddCustomerModalSave = async (customerData) => {
+    try {
+      // Format the phone number to ensure it's in the correct format
+      // Remove any spaces from the phone number
+      const formattedPhone = customerData.phone.replace(/\s+/g, "");
+
+      // Prepare the data with the formatted phone number
+      const formattedData = {
+        ...customerData,
+        phone: formattedPhone,
+        // Ensure email is null if it's empty
+        email: customerData.email && customerData.email.trim() !== "" ? customerData.email : null
+      };
+
+      // Log the data being sent to the API for debugging
+      console.log("Sending customer data to API:", formattedData);
+
+      // First check if a customer with this phone number already exists
+      try {
+        const searchResponse = await API.get(`/customers?search=${encodeURIComponent(formattedPhone)}`);
+        const matchingCustomers = searchResponse.data?.data?.customers || [];
+
+        // If we found a matching customer by phone, use it
+        if (matchingCustomers.length > 0) {
+          const existingCustomer = matchingCustomers.find(c => c.phone === formattedPhone);
+          if (existingCustomer) {
+            console.log("Found existing customer by phone:", existingCustomer);
+
+            // Update the customers list if needed
+            if (!customers.some(c => c.id === existingCustomer.id)) {
+              setCustomers([...customers, existingCustomer]);
+            }
+
+            // Select the existing customer
+            handleCustomerSelect(existingCustomer);
+
+            // Close the modal
+            setIsAddCustomerModalOpen(false);
+
+            // Return success with a note
+            return {
+              success: true,
+              message: "Using existing customer with this phone number."
+            };
+          }
+        }
+      } catch (searchError) {
+        console.error("Error searching for existing customer by phone:", searchError);
+      }
+
+      // If no existing customer found by phone, try to create a new one
+      const response = await API.post("/customers", formattedData);
+      const newCustomer = response.data?.data?.customer;
+      if (newCustomer) {
+        // Update the customers list with the new customer
+        setCustomers([...customers, newCustomer]);
+
+        // Select the new customer and populate the form fields
+        handleCustomerSelect(newCustomer);
+
+        // Close the modal
+        setIsAddCustomerModalOpen(false);
+
+        return { success: true };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error creating customer:", error);
+      // Log more details about the error
+      if (error.response) {
+        console.error("Error response data:", error.response.data);
+        console.error("Error response status:", error.response.status);
+
+        // Check if this is a duplicate email error
+        if (error.response.data?.message?.includes("email already exists")) {
+          // Try to find the customer with this email
+          try {
+            // Extract the email from the form data
+            const email = customerData.email;
+            if (email) {
+              // Search for customers with this email
+              const searchResponse = await API.get(`/customers?search=${encodeURIComponent(email)}`);
+              const matchingCustomers = searchResponse.data?.data?.customers || [];
+
+              // If we found a matching customer, use it
+              if (matchingCustomers.length > 0) {
+                const existingCustomer = matchingCustomers.find(c =>
+                  c.email && c.email.toLowerCase() === email.toLowerCase()
+                );
+
+                if (existingCustomer) {
+                  console.log("Found existing customer by email:", existingCustomer);
+
+                  // Update the customers list if needed
+                  if (!customers.some(c => c.id === existingCustomer.id)) {
+                    setCustomers([...customers, existingCustomer]);
+                  }
+
+                  // Select the existing customer
+                  handleCustomerSelect(existingCustomer);
+
+                  // Close the modal
+                  setIsAddCustomerModalOpen(false);
+
+                  // Return success with a note
+                  return {
+                    success: true,
+                    message: "Using existing customer with this email address."
+                  };
+                }
+              }
+            }
+          } catch (searchError) {
+            console.error("Error searching for existing customer by email:", searchError);
+          }
+        }
+
+        // Check if this is a duplicate phone error
+        if (error.response.data?.message?.includes("phone already exists")) {
+          // Try to find the customer with this phone
+          try {
+            // Extract the phone from the form data
+            const phone = formattedPhone;
+            if (phone) {
+              // Search for customers with this phone
+              const searchResponse = await API.get(`/customers?search=${encodeURIComponent(phone)}`);
+              const matchingCustomers = searchResponse.data?.data?.customers || [];
+
+              // If we found a matching customer, use it
+              if (matchingCustomers.length > 0) {
+                const existingCustomer = matchingCustomers.find(c => c.phone === phone);
+
+                if (existingCustomer) {
+                  console.log("Found existing customer by phone:", existingCustomer);
+
+                  // Update the customers list if needed
+                  if (!customers.some(c => c.id === existingCustomer.id)) {
+                    setCustomers([...customers, existingCustomer]);
+                  }
+
+                  // Select the existing customer
+                  handleCustomerSelect(existingCustomer);
+
+                  // Close the modal
+                  setIsAddCustomerModalOpen(false);
+
+                  // Return success with a note
+                  return {
+                    success: true,
+                    message: "Using existing customer with this phone number."
+                  };
+                }
+              }
+            }
+          } catch (searchError) {
+            console.error("Error searching for existing customer by phone:", searchError);
+          }
+        }
+      }
+
+      // Return the error to the modal
+      return {
+        success: false,
+        error: error.response?.data?.message || "Failed to create customer. Please try again."
+      };
     }
   };
 
@@ -443,6 +700,12 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   };
 
   const handleDiscountChange = (e) => {
+    // If the input is empty, set discount to empty string
+    if (e.target.value === '') {
+      setDiscount('');
+      return;
+    }
+
     const value = parseFloat(e.target.value) || 0;
     setDiscount(Math.max(0, Math.min(value, 100)));
   };
@@ -507,7 +770,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
     setSelectedProduct(null);
     setSelectedStock(null);
     setAvailableStocks([]);
-    setQuantity(0);
+    setQuantity(1); // Reset to 1 instead of 0 to maintain minimum value
     setSerialNumbers([]);
     setDiscount(0);
     setProductSearchQuery("");
@@ -562,11 +825,124 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
         amount_paid: amountPaid,
         change_amount: changeAmount,
       };
+
       const response = await API.post("/sales", saleData);
+      const newSaleData = response.data?.data?.sale;
+
+      // Log the complete API response for debugging
+      console.log("Sale API response:", response.data);
+
+      // Extract the invoice number from the sale data
+      // In the backend, the invoice_no is returned as bill_no in the sale data
+      const invoiceNumber = newSaleData?.bill_no || "N/A";
+      console.log("Retrieved invoice number:", invoiceNumber);
+
+      // Update the currentSale with the newly created sale data
+      // This ensures the PDF receipt has all the correct information
+      if (newSaleData) {
+        // Format the sale data to match the expected structure for the PDF receipt
+        const formattedSaleData = {
+          ...newSaleData,
+          customer_name: newSaleData.customer?.name || customerName || "Walk-in Customer",
+          customer_phone: newSaleData.customer?.phone || customerPhone || "N/A",
+          customer_email: newSaleData.customer?.email || customerEmail || null,
+          // Use the invoice number from the API response
+          invoice_no: invoiceNumber,
+          bill_no: invoiceNumber, // Set bill_no to the same value as invoice_no
+          date: newSaleData.date || new Date().toISOString(),
+          payment_method: newSaleData.payment_method || paymentMethod,
+          amount_paid: newSaleData.amount_paid || amountPaid,
+          subtotal: newSaleData.subtotal || calculateTotal(),
+          discount: newSaleData.discount || 0,
+          total: newSaleData.total || calculateTotal(),
+          items: cartItems.map(item => ({
+            ...item,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            serial_numbers: item.serial_numbers,
+            unit_price: item.unit_price,
+            discount: item.discount,
+            warranty: item.warranty,
+            subtotal: item.subtotal
+          }))
+        };
+
+        // Update the local currentSale state directly
+        // This is important for the PDF receipt generation
+        setIsViewMode(true); // Set to view mode to ensure receipt is properly formatted
+
+        // Create a reference to the formatted sale data for the PDF
+        const currentSaleState = { ...formattedSaleData };
+
+        // Directly update the currentSale state variable
+        // This ensures it's available for the PDF generation
+        window.tempCurrentSale = currentSaleState;
+
+        // Wait for state update to complete
+        setTimeout(() => {
+          try {
+            // Make sure the receipt element is ready for PDF generation
+            const receiptElement = document.getElementById('receipt-for-pdf');
+            if (receiptElement) {
+              // Make it visible for PDF generation
+              receiptElement.style.visibility = 'visible';
+
+              // Log the current sale data before generating PDF
+              console.log("Current sale data for PDF:", currentSaleState);
+
+              // Generate the PDF
+              toPDF()
+                .then(() => {
+                  console.log("PDF generated successfully");
+
+                  // After successful PDF generation, notify parent component
+                  onSave && onSave(formattedSaleData);
+
+                  // Hide the receipt element again
+                  receiptElement.style.visibility = 'hidden';
+
+                  // Clean up the temporary global variable
+                  if (window.tempCurrentSale) {
+                    delete window.tempCurrentSale;
+                  }
+                })
+                .catch(error => {
+                  console.error("Error generating PDF:", error);
+
+                  // Still notify parent component even if PDF generation fails
+                  onSave && onSave(formattedSaleData);
+
+                  // Clean up the temporary global variable
+                  if (window.tempCurrentSale) {
+                    delete window.tempCurrentSale;
+                  }
+                });
+            } else {
+              console.error("Receipt element not found for PDF generation");
+              // Still notify parent component
+              onSave && onSave(formattedSaleData);
+
+              // Clean up the temporary global variable
+              if (window.tempCurrentSale) {
+                delete window.tempCurrentSale;
+              }
+            }
+          } catch (printError) {
+            console.error("Error in PDF generation process:", printError);
+            // Still notify parent component
+            onSave && onSave(formattedSaleData);
+
+            // Clean up the temporary global variable
+            if (window.tempCurrentSale) {
+              delete window.tempCurrentSale;
+            }
+          }
+        }, 300); // Longer delay to ensure the DOM is updated
+      }
+
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        onSave && onSave(response.data?.data?.sale);
       }, 5000); // Changed from 50000 (50 seconds) to 5000 (5 seconds)
     } catch (error) {
       console.error("Error creating sale:", error);
@@ -607,14 +983,15 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
+    
       {/* Add style tag for PDF printing */}
       <style>{pdfStyles}</style>
       <div className="bg-white w-full h-full max-h-screen flex flex-col">
         <div className="sticky top-0 bg-white p-4 border-b border-gray-200 flex justify-between items-center z-10 shadow-sm">
           <h2 className="text-xl font-semibold">
             {isViewMode
-              ? `Sale #${currentSale?.bill_no || ""}`
+              ? `Sale #${currentSale?.invoice_no || currentSale?.bill_no || ""}`
               : "Add New Sale"}
           </h2>
           <button
@@ -843,6 +1220,16 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                               }
                             }
                           }}
+                          onFocus={() => {
+                            if (quantity === 1) {
+                              setQuantity('');
+                            }
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === '' || parseInt(e.target.value, 10) < 1) {
+                              setQuantity(1);
+                            }
+                          }}
                           disabled={!selectedStock}
                           placeholder="1"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -862,11 +1249,20 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                           type="number"
                           min="0"
                           max="100"
-                          step="0.01"
+                          step="0.1"
                           value={discount}
                           onChange={handleDiscountChange}
+                          onFocus={() => {
+                            if (discount === 0) {
+                              setDiscount('');
+                            }
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === '') {
+                              setDiscount(0);
+                            }
+                          }}
                           disabled={!selectedStock}
-                          placeholder="0"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
@@ -999,8 +1395,8 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
 
             {/* Cart */}
             <div className="bg-white rounded-lg shadow-sm p-4 flex-1 flex flex-col overflow-hidden">
-              {/* Receipt content for PDF generation - visible but positioned off-screen */}
-              <div ref={targetRef} id="receipt-for-pdf" style={{ position: 'absolute', visibility: isViewMode ? 'visible' : 'hidden', zIndex: -1000, width: '210mm', backgroundColor: 'white', padding: '20px', border: '1px solid #eee' }}>
+              {/* Receipt content for PDF generation - always in the DOM but positioned off-screen */}
+              <div ref={targetRef} id="receipt-for-pdf" style={{ position: 'absolute', visibility: 'hidden', zIndex: -1000, width: '210mm', backgroundColor: 'white', padding: '20px', border: '1px solid #eee' }}>
                 {/* PDF Header */}
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', color: '#000' }}>
@@ -1016,19 +1412,19 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <div style={{ fontSize: '12px', color: '#000' }}>
-                    <div><strong>Invoice #: </strong>{currentSale?.bill_no}</div>
-                    <div><strong>Date: </strong>{currentSale?.date ? new Date(currentSale.date).toLocaleDateString() : "N/A"}</div>
+                    <div><strong>Invoice #: </strong>{window.tempCurrentSale?.bill_no || currentSale?.bill_no || "N/A"}</div>
+                    <div><strong>Date: </strong>{currentSale?.date ? new Date(currentSale.date).toLocaleDateString() : new Date().toLocaleDateString()}</div>
                   </div>
                   <div style={{ fontSize: '12px', color: '#000', textAlign: 'right' }}>
-                    <div><strong>Customer: </strong>{currentSale?.customer_name || "Walk-in Customer"}</div>
-                    <div><strong>Phone: </strong>{currentSale?.customer_phone || "N/A"}</div>
-                    {currentSale?.customer_email && (
-                      <div><strong>Email: </strong>{currentSale.customer_email}</div>
+                    <div><strong>Customer: </strong>{window.tempCurrentSale?.customer_name || currentSale?.customer_name || customerName || "Walk-in Customer"}</div>
+                    <div><strong>Phone: </strong>{window.tempCurrentSale?.customer_phone || currentSale?.customer_phone || customerPhone || "N/A"}</div>
+                    {(window.tempCurrentSale?.customer_email || currentSale?.customer_email || customerEmail) && (
+                      <div><strong>Email: </strong>{window.tempCurrentSale?.customer_email || currentSale?.customer_email || customerEmail}</div>
                     )}
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'center', padding: '5px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', marginBottom: '15px', fontWeight: 'bold', color: '#000' }}>
+                <div style={{ textAlign: 'center', padding: '6px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', marginBottom: '15px', fontWeight: 'bold', color: '#000' }}>
                   SALES RECEIPT
                 </div>
 
@@ -1040,12 +1436,14 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
                   <thead>
                     <tr>
-                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>PRODUCT</th>
-                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>SERIAL NO</th>
-                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>WARRANTY</th>
-                      <th style={{ padding: '5px', textAlign: 'center', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>QTY</th>
-                      <th style={{ padding: '5px', textAlign: 'right', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>DISCOUNT</th>
-                      <th style={{ padding: '5px', textAlign: 'right', borderBottom: '1px solid #000', fontSize: '12px', fontWeight: 'bold', color: '#000' }}>PRICE</th>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '10%' }}>PRODUCT ID</th>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '23%' }}>PRODUCT</th>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '12%' }}>UNIT PRICE</th>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '15%' }}>SERIAL NO</th>
+                      <th style={{ padding: '5px', textAlign: 'left', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '10%' }}>WARRANTY</th>
+                      <th style={{ padding: '5px', textAlign: 'center', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '5%' }}>QTY</th>
+                      <th style={{ padding: '5px', textAlign: 'right', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '10%' }}>DISCOUNT</th>
+                      <th style={{ padding: '5px', textAlign: 'right', borderBottom: '1px solid #000', fontSize: '10px', fontWeight: 'bold', color: '#000', width: '15%' }}>PRICE</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1054,18 +1452,20 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                         <React.Fragment key={`pdf-${item.id}`}>
                           {/* Main product row */}
                           <tr style={{ borderBottom: '1px solid #eee' }}>
-                            <td style={{ padding: '5px', fontSize: '12px', color: '#000' }}>{item.product_name}</td>
-                            <td style={{ padding: '5px', fontSize: '12px', color: '#000' }}>
+                            <td style={{ padding: '4px', fontSize: '10px', color: '#000' }}>{item.product_id}</td>
+                            <td style={{ padding: '4px', fontSize: '10px', color: '#000' }}>{item.product_name}</td>
+                            <td style={{ padding: '4px', fontSize: '10px', color: '#000', textAlign: 'left' }}>{formatCurrency(item.unit_price)}</td>
+                            <td style={{ padding: '4px', fontSize: '10px', color: '#000' }}>
                               {item.serial_numbers && item.serial_numbers.length > 0 && item.quantity === 1
                                 ? item.serial_numbers[0]
                                 : item.serial_numbers && item.serial_numbers.length > 0
                                   ? `${item.serial_numbers.length} serials`
                                   : '-'}
                             </td>
-                            <td style={{ padding: '5px', fontSize: '12px', color: '#000' }}>{item.warranty} months</td>
-                            <td style={{ padding: '5px', fontSize: '12px', textAlign: 'center', color: '#000' }}>{item.quantity}</td>
-                            <td style={{ padding: '5px', fontSize: '12px', textAlign: 'right', color: '#000' }}>{item.discount}.0%</td>
-                            <td style={{ padding: '5px', fontSize: '12px', textAlign: 'right', color: '#000' }}>{formatCurrency(item.subtotal)}</td>
+                            <td style={{ padding: '4px', fontSize: '10px', color: '#000' }}>{item.warranty} months</td>
+                            <td style={{ padding: '4px', fontSize: '10px', textAlign: 'center', color: '#000' }}>{item.quantity}</td>
+                            <td style={{ padding: '4px', fontSize: '10px', textAlign: 'right', color: '#000' }}>{item.discount}.0%</td>
+                            <td style={{ padding: '4px', fontSize: '10px', textAlign: 'right', color: '#000' }}>{formatCurrency(item.subtotal)}</td>
                           </tr>
 
                           {/* Show serial rows for items with quantity > 1 */}
@@ -1073,10 +1473,12 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                             item.serial_numbers.map((serial, idx) =>
                               serial && serial.trim() !== "" ? (
                                 <tr key={`pdf-serial-${item.id}-${idx}`} style={{ backgroundColor: '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
-                                  <td style={{ padding: '3px 5px 3px 15px', fontSize: '10px', color: '#444', fontStyle: 'italic' }}>
+                                  <td style={{ padding: '2px', fontSize: '8px', color: '#444' }}></td>
+                                  <td style={{ padding: '2px', fontSize: '8px', color: '#444' }}></td>
+                                  <td style={{ padding: '2px 2px 2px 10px', fontSize: '8px', color: '#444', fontStyle: 'italic' }}>
                                     Serial #{idx + 1}
                                   </td>
-                                  <td style={{ padding: '3px 5px', fontSize: '10px', color: '#000', fontWeight: '500' }}>
+                                  <td style={{ padding: '2px', fontSize: '8px', color: '#000', fontWeight: '500' }}>
                                     {serial}
                                   </td>
                                   <td colSpan={4}></td>
@@ -1088,7 +1490,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} style={{ padding: '5px', textAlign: 'center', fontSize: '12px', color: '#000' }}>
+                        <td colSpan={8} style={{ padding: '4px', textAlign: 'center', fontSize: '10px', color: '#000' }}>
                           No items in this sale
                         </td>
                       </tr>
@@ -1106,13 +1508,18 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                 {/* Payment Information and Totals - Styled to match reference image */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', paddingTop: '10px', borderTop: '1px solid #eee' }}>
                   <div style={{ fontSize: '12px', color: '#000' }}>
-                    <div style={{ marginBottom: '5px' }}><strong>Payment Method:</strong> {currentSale?.payment_method || "Cash"}</div>
-                    <div><strong>Amount Paid:</strong> LKR {formatCurrency(currentSale?.amount_paid || 0)}</div>
+                    <div style={{ marginBottom: '5px' }}><strong>Payment Method:</strong> {currentSale?.payment_method || paymentMethod || "Cash"}</div>
+                    <div><strong>Amount Paid:</strong> LKR {formatCurrency(currentSale?.total || calculateTotal())}</div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: '12px', color: '#000' }}>
                     <div style={{ marginBottom: '5px' }}><strong>Subtotal:</strong> LKR {formatCurrency(currentSale?.subtotal || calculateTotal())}</div>
-                    {currentSale?.discount > 0 && (
-                      <div style={{ marginBottom: '5px' }}><strong>Discount:</strong> LKR {formatCurrency(currentSale?.discount || 0)}</div>
+                    {(currentSale?.discount > 0 || cartItems.some(item => item.discount > 0)) && (
+                      <div style={{ marginBottom: '5px' }}><strong>Discount:</strong> LKR {formatCurrency(currentSale?.discount ||
+                        cartItems.reduce((total, item) => {
+                          const itemDiscount = item.unit_price * item.quantity * (item.discount / 100);
+                          return total + itemDiscount;
+                        }, 0)
+                      )}</div>
                     )}
                     <div style={{ fontWeight: 'bold' }}><strong>Grand Total:</strong> LKR {formatCurrency(currentSale?.total || calculateTotal())}</div>
                   </div>
@@ -1181,7 +1588,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                                   <span className="text-gray-700 font-medium">{item.serial_numbers[0]}</span>
                                 ) : (
                                   <span className="text-gray-500 cursor-pointer hover:text-blue-500" title="See details below">
-                                    {item.serial_numbers.length} serials
+                                    {"-"}
                                   </span>
                                 )
                               ) : (
@@ -1372,16 +1779,51 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                             type="text"
                             value={customerPhone}
                             onChange={(e) => {
-                              setCustomerPhone(e.target.value);
-                              setCustomerSearchQuery(e.target.value);
-                              setIsSearchingCustomer(true);
+                              if (!isCustomerSelected) {
+                                setCustomerPhone(e.target.value);
+                                setCustomerSearchQuery(e.target.value);
+                                setIsSearchingCustomer(true);
+                              }
                             }}
-                            onFocus={() => setIsSearchingCustomer(true)}
+                            onFocus={() => {
+                              if (!isCustomerSelected) {
+                                setIsSearchingCustomer(true);
+                              }
+                            }}
+                            readOnly={isCustomerSelected}
                             placeholder="Search by customer phone..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 pr-10 ${isCustomerSelected ? 'bg-gray-50' : ''}`}
                           />
-                          {isSearchingCustomer && customerSearchQuery && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {/* Clear button for phone number */}
+                          {customerPhone && (
+                            <button
+                              type="button"
+                              onClick={handleClearCustomer}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              tabIndex={-1}
+                              aria-label="Clear customer"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </button>
+                          )}
+                          {isSearchingCustomer && customerSearchQuery && !isCustomerSelected && (
+                            <div
+                              ref={customerDropdownRef}
+                              className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                            >
                               {filteredCustomers.length > 0 ? (
                                 filteredCustomers.map((customer) => (
                                   <div
@@ -1392,6 +1834,11 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                                     }
                                   >
                                     {customer.name} - {customer.phone}
+                                    {customer.email && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {customer.email}
+                                      </div>
+                                    )}
                                   </div>
                                 ))
                               ) : (
@@ -1416,9 +1863,32 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                         <input
                           type="text"
                           value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
+                          onChange={(e) => {
+                            if (!isCustomerSelected) {
+                              setCustomerName(e.target.value);
+                            }
+                          }}
+                          readOnly={isCustomerSelected}
                           placeholder="Customer name"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${isCustomerSelected ? 'bg-gray-50' : ''}`}
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {" "}
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={customerEmail || ""}
+                          onChange={(e) => {
+                            if (!isCustomerSelected) {
+                              setCustomerEmail(e.target.value);
+                            }
+                          }}
+                          readOnly={isCustomerSelected}
+                          placeholder="Email"
+                          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${isCustomerSelected ? 'bg-gray-50' : ''}`}
                         />
                       </div>
                       <button
@@ -1496,11 +1966,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
                     </p>
                     <p className="text-sm">
                       Amount Paid: LKR{" "}
-                      {formatCurrency(currentSale.amount_paid || 0)}
-                    </p>
-                    <p className="text-sm">
-                      Change Given: LKR{" "}
-                      {formatCurrency(currentSale.change_amount || 0)}
+                      {formatCurrency(currentSale.total || 0)}
                     </p>
                   </div>
 
@@ -1535,9 +2001,17 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
         </div>
       </div>
 
+      {/* Add Customer Modal */}
+      <AddCustomerModal
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        onSave={handleAddCustomerModalSave}
+        loading={isSubmitting}
+      />
+
       {/* Payment Modal */}
       {isPaymentModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">

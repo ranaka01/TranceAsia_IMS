@@ -63,13 +63,13 @@ const Suppliers = () => {
     try {
       const response = await API.get(API_URL);
       const data = response.data?.data?.suppliers || [];
-      
+
       // Format date for display if needed
       const formattedData = data.map(supplier => ({
         ...supplier,
         formattedDate: supplier.date ? new Date(supplier.date).toLocaleDateString() : 'N/A'
       }));
-      
+
       setSuppliers(formattedData);
       setFilteredSuppliers(formattedData);
     } catch (err) {
@@ -222,17 +222,17 @@ const Suppliers = () => {
       setValidationErrors({});
     } catch (err) {
       console.error("Error adding supplier:", err);
-      
+
       // Handle API error responses
       if (err.response?.data?.errors) {
         const apiErrors = err.response.data.errors;
-        
+
         // Map API errors to form fields
         const fieldErrors = {};
         if (apiErrors.email) fieldErrors.email = "This email is already registered";
         if (apiErrors.phone) fieldErrors.phone = "This phone number is already registered";
         if (apiErrors.address) fieldErrors.address = "This address is already registered";
-        
+
         if (Object.keys(fieldErrors).length > 0) {
           setValidationErrors({
             ...errors,
@@ -303,7 +303,7 @@ const Suppliers = () => {
     } else {
       // Check for duplicate email (excluding current supplier)
       const isDuplicateEmail = suppliers.some(
-        supplier => supplier.id !== currentSupplier.id && 
+        supplier => supplier.id !== currentSupplier.id &&
           supplier.email && supplier.email.toLowerCase() === updatedData.email.toLowerCase()
       );
       if (isDuplicateEmail) {
@@ -331,8 +331,8 @@ const Suppliers = () => {
       // Update local state
       const updatedSuppliers = suppliers.map((supplier) =>
         supplier.id === currentSupplier.id
-          ? { 
-              ...supplier, 
+          ? {
+              ...supplier,
               ...updatedData,
               formattedDate: supplier.formattedDate // Keep the formatted date
             }
@@ -345,17 +345,17 @@ const Suppliers = () => {
       setValidationErrors({});
     } catch (err) {
       console.error("Error updating supplier:", err);
-      
+
       // Handle API error responses
       if (err.response?.data?.errors) {
         const apiErrors = err.response.data.errors;
-        
+
         // Map API errors to form fields
         const fieldErrors = {};
         if (apiErrors.email) fieldErrors.email = "This email is already registered";
         if (apiErrors.phone) fieldErrors.phone = "This phone number is already registered";
         if (apiErrors.address) fieldErrors.address = "This address is already registered";
-        
+
         if (Object.keys(fieldErrors).length > 0) {
           setValidationErrors({
             ...errors,
@@ -514,10 +514,10 @@ const Suppliers = () => {
                     </td>
                     <td className="py-3 px-4 text-center">{supplier.formattedDate || supplier.date || "N/A"}</td>
                     <td className="py-3 px-4 text-center">
-                      <span 
+                      <span
                         className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          supplier.is_active 
-                            ? 'bg-green-100 text-green-800' 
+                          supplier.is_active
+                            ? 'bg-green-100 text-green-800'
                             : 'bg-red-100 text-red-800'
                         }`}
                       >
@@ -549,40 +549,40 @@ const Suppliers = () => {
                         <button
                           onClick={() => handleToggleStatus(supplier)}
                           className={`p-1 ${
-                            supplier.is_active 
-                              ? 'text-yellow-600 hover:text-yellow-800' 
+                            supplier.is_active
+                              ? 'text-yellow-600 hover:text-yellow-800'
                               : 'text-green-600 hover:text-green-800'
                           }`}
                           title={supplier.is_active ? 'Deactivate' : 'Activate'}
                         >
                           {supplier.is_active ? (
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              className="h-5 w-5" 
-                              fill="none" 
-                              viewBox="0 0 24 24" 
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
                               stroke="currentColor"
                             >
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth={2} 
-                                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" 
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
                               />
                             </svg>
                           ) : (
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              className="h-5 w-5" 
-                              fill="none" 
-                              viewBox="0 0 24 24" 
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
                               stroke="currentColor"
                             >
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth={2} 
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" 
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                               />
                             </svg>
                           )}
@@ -637,7 +637,7 @@ const Suppliers = () => {
 
       {/* Add Supplier Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-md p-6 w-full max-w-md max-h-screen overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">New Supplier</h2>
@@ -669,7 +669,7 @@ const Suppliers = () => {
                   {validationErrors.submit}
                 </div>
               )}
-              
+
               {/* Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
@@ -691,7 +691,7 @@ const Suppliers = () => {
                   </p>
                 )}
               </div>
-              
+
               {/* Shop Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
@@ -804,7 +804,7 @@ const Suppliers = () => {
 
       {/* Edit Supplier Modal - With validation */}
       {isEditModalOpen && currentSupplier && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-md p-6 w-full max-w-md max-h-screen overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Edit Supplier</h2>
@@ -836,7 +836,7 @@ const Suppliers = () => {
                   {validationErrors.submit}
                 </div>
               )}
-              
+
               {/* Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
@@ -859,7 +859,7 @@ const Suppliers = () => {
                   </p>
                 )}
               </div>
-              
+
               {/* Shop Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 mb-2">
@@ -976,7 +976,7 @@ const Suppliers = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && supplierToDelete && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-md p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
             <p className="mb-6">

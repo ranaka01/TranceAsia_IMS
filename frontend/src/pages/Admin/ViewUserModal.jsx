@@ -17,7 +17,7 @@ const ViewUserModal = ({ isOpen, onClose, user }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-md p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold">User Details</h2>
@@ -69,8 +69,8 @@ const ViewUserModal = ({ isOpen, onClose, user }) => {
             <label className="block text-gray-500 text-sm mb-1">Role</label>
             <p className="text-gray-800">
               <span className={`px-2 py-1 rounded-full text-xs ${
-                user.Role === 'Admin' 
-                  ? 'bg-purple-100 text-purple-800' 
+                user.Role === 'Admin'
+                  ? 'bg-purple-100 text-purple-800'
                   : user.Role === 'Cashier'
                   ? 'bg-green-100 text-green-800'
                   : 'bg-blue-100 text-blue-800'
