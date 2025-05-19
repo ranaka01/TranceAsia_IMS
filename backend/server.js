@@ -2,13 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path'); // Add this for path handling
 const db = require('./db');
-const UserRoutes = require('./routes/UserRoutes'); 
-const SupplierRoutes = require('./routes/SupplierRoutes');
-const ProductRoutes = require('./routes/ProductRoutes'); 
-const CustomerRoutes = require('./routes/CustomerRoutes');
-const PurchaseRoutes = require('./routes/PurchaseRoutes');
-const SalesRoutes = require('./routes/SalesRoutes');
-const InventoryRoutes = require('./routes/InventoryRoutes');
+const UserRoutes = require('./routes/UserRoutes');
+const SupplierRoutes = require('./routes/Admin/SupplierRoutes');
+const ProductRoutes = require('./routes/Admin/ProductRoutes');
+const CustomerRoutes = require('./routes/Admin/CustomerRoutes');
+const PurchaseRoutes = require('./routes/Admin/PurchaseRoutes');
+const SalesRoutes = require('./routes/Admin/SalesRoutes');
+const InventoryRoutes = require('./routes/Admin/InventoryRoutes');
+const RepairRoutes = require('./routes/RepairRoutes');
 const cors = require('cors');
 const fs = require('fs'); // Add this for file system operations
 
@@ -33,10 +34,11 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/users', UserRoutes);
 app.use('/suppliers', SupplierRoutes);
 app.use('/products', ProductRoutes);
-app.use('/customers', CustomerRoutes);  
+app.use('/customers', CustomerRoutes);
 app.use('/purchases', PurchaseRoutes);
 app.use('/sales', SalesRoutes);
 app.use('/inventory', InventoryRoutes);
+app.use('/repairs', RepairRoutes);
 //app.use('/products', require('./routes/productRoute'));
 
 

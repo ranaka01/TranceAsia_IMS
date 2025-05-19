@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from "react";
+import { formatDeadlineDate } from "../../utils/dateUtils";
+import { toast } from "react-toastify";
+import { generateRepairReceipt, savePDF } from "../../utils/simplePdfGenerator";
 
-const ViewRepairModal = ({ 
-  isOpen, 
-  onClose, 
-  onUpdate, 
-  repair, 
-  technicians, 
-  statusOptions 
+const ViewRepairModal = ({
+  isOpen,
+  onClose,
+  onUpdate,
+  repair,
+  technicians,
+  statusOptions
 }) => {
   const [formData, setFormData] = useState({...repair});
   const [errors, setErrors] = useState({});
-  const [productInput, setProductInput] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -26,16 +28,16 @@ const ViewRepairModal = ({
     if (!phone || phone.trim() === '') {
       return "Phone number is required";
     }
-    
+
     // Remove spaces for validation
     const cleanPhone = phone.replace(/\s+/g, '');
-    
+
     // Sri Lankan mobile numbers:
     // 1. Start with '07' followed by 8 more digits
     // 2. Or international format +94 7X XXXXXXX
     const localPattern = /^07[0-9]{8}$/;
     const intlPattern = /^\+947[0-9]{8}$/;
-    
+
     if (localPattern.test(cleanPhone) || intlPattern.test(cleanPhone)) {
       return "";
     } else {
@@ -48,7 +50,7 @@ const ViewRepairModal = ({
     if (!email || email.trim() === '') {
       return "Email is required";
     }
-    
+
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (emailPattern.test(email)) {
       return "";
@@ -60,39 +62,24 @@ const ViewRepairModal = ({
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
-    
+
     setFormData({
       ...formData,
       [name]: newValue
     });
 
-    // If form was already submitted once, validate on change 
+    // If form was already submitted once, validate on change
     // to give immediate feedback
     if (isSubmitted) {
-      validateField(name, newValue);
+      const errorMessage = validateField(name, newValue);
+      setErrors(prev => ({
+        ...prev,
+        [name]: errorMessage
+      }));
     }
   };
 
-  // Handle adding a product
-  const handleAddProduct = () => {
-    if (productInput.trim() !== "") {
-      setFormData({
-        ...formData,
-        products: [...formData.products, productInput.trim()]
-      });
-      setProductInput("");
-    }
-  };
 
-  // Handle removing a product
-  const handleRemoveProduct = (index) => {
-    const updatedProducts = [...formData.products];
-    updatedProducts.splice(index, 1);
-    setFormData({
-      ...formData,
-      products: updatedProducts
-    });
-  };
 
   // Toggle edit mode
   const toggleEditMode = () => {
@@ -103,8 +90,25 @@ const ViewRepairModal = ({
 
   // Handle printing bill
   const handlePrintBill = () => {
-    alert(`Generating bill for repair ID: ${repair.id}`);
-    // In a real implementation, this would generate and download a PDF
+    // Only generate PDF for repairs with "Picked Up" status
+    if (repair.status !== "Picked Up") {
+      toast.info("PDF receipts can only be generated for repairs with 'Picked Up' status");
+      return;
+    }
+
+    try {
+      // Generate the PDF document
+      const doc = generateRepairReceipt(repair, technicians);
+
+      // Save the PDF with a filename based on the repair ID
+      const filename = `repair-receipt-${repair.id}.pdf`;
+      savePDF(doc, filename);
+
+      toast.success("Receipt PDF generated successfully");
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+      toast.error(`Failed to generate PDF receipt: ${err.message}`);
+    }
   };
 
   // Handle printing work order
@@ -116,118 +120,132 @@ const ViewRepairModal = ({
   // Validate a specific field
   const validateField = (name, value) => {
     let error = "";
-    
+
     switch (name) {
       case 'customer':
         if (!value || value.trim() === '') {
           error = "Customer name is required";
         }
         break;
-        
+
       case 'phone':
         error = validateMobileNumber(value);
         break;
-        
+
       case 'email':
         error = validateEmail(value);
         break;
-        
+
       case 'deviceType':
         if (!value || value.trim() === '') {
           error = "Device type is required";
         }
         break;
-        
+
       case 'deviceModel':
         if (!value || value.trim() === '') {
           error = "Device model is required";
         }
         break;
-        
+
       case 'issue':
         if (!value || value.trim() === '') {
           error = "Issue description is required";
         }
         break;
-        
+
       case 'technician':
         if (!value || value.trim() === '') {
           error = "Technician is required";
         }
         break;
-        
+
       case 'deadline':
         if (!value) {
           error = "Deadline is required";
         }
         break;
-        
+
       case 'estimatedCost':
         if (!value || value.trim() === '') {
           error = "Estimated cost is required";
-        } else if (isNaN(value.replace(/,/g, ''))) {
+        } else if (isNaN(value.toString().replace(/,/g, ''))) {
           error = "Please enter a valid amount";
         }
         break;
-        
+
       default:
         break;
     }
-    
+
     setErrors(prev => ({
       ...prev,
       [name]: error
     }));
-    
-    return error === "";
+
+    // Return the error message string - empty string means no error
+    return error;
   };
 
-  // Validate all required fields
+  // Validate only the editable fields
   const validateForm = () => {
+    // Only validate the fields that are editable in edit mode
+    // Removed estimatedCost as it's now read-only
     const fieldsToValidate = [
-      'customer', 'phone', 'email', 'deviceType', 
-      'deviceModel', 'issue', 'technician', 'deadline', 'estimatedCost'
+      'issue', 'technician'
     ];
-    
+
     let isValid = true;
     const newErrors = {};
-    
+
     fieldsToValidate.forEach(field => {
       const fieldValue = formData[field];
-      const error = validateField(field, fieldValue);
-      if (error) {
-        newErrors[field] = error;
+      const errorMessage = validateField(field, fieldValue);
+      // If errorMessage is not empty, there's an error
+      if (errorMessage !== "") {
+        newErrors[field] = errorMessage;
         isValid = false;
       }
     });
-    
+
     setErrors(newErrors);
     return isValid;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Set form as submitted to show all errors
     setIsSubmitted(true);
-    
+
     // Validate form
     const isValid = validateForm();
-    
+
     if (isValid) {
-      // Format currency values
-      const formattedFormData = {
-        ...formData,
-        estimatedCost: formData.estimatedCost.replace(/,/g, '') 
-          ? parseFloat(formData.estimatedCost.replace(/,/g, '')).toLocaleString()
-          : "0.00",
-        advancePayment: formData.advancePayment.replace(/,/g, '') 
-          ? parseFloat(formData.advancePayment.replace(/,/g, '')).toLocaleString()
-          : "0.00"
-      };
-      
-      onUpdate(formattedFormData);
-      setIsEditing(false);
+      try {
+        // Create a formatted form data object with all fields
+        // For read-only fields, use the original repair values
+        const formattedFormData = {
+          ...formData,
+          // Use original values for read-only fields
+          estimatedCost: repair.estimatedCost,
+          advancePayment: repair.advancePayment,
+          password: repair.password,
+          // Format the extraExpenses field which is still editable
+          extraExpenses: formData.extraExpenses && formData.extraExpenses.replace(/,/g, '')
+            ? parseFloat(formData.extraExpenses.replace(/,/g, '')).toLocaleString()
+            : "0.00"
+        };
+
+        console.log("Submitting updated repair data:", formattedFormData);
+        onUpdate(formattedFormData);
+        setIsEditing(false);
+      } catch (error) {
+        console.error("Error formatting repair data:", error);
+        toast.error("Error updating repair: " + error.message);
+      }
+    } else {
+      toast.error("Please fix the validation errors before submitting.");
     }
   };
 
@@ -236,31 +254,24 @@ const ViewRepairModal = ({
     if (isEditing) {
       const { name, value, type, checked } = e.target;
       const fieldValue = type === 'checkbox' ? checked : value;
-      validateField(name, fieldValue);
+      const errorMessage = validateField(name, fieldValue);
+
+      // Update the specific error in the errors state
+      setErrors(prev => ({
+        ...prev,
+        [name]: errorMessage
+      }));
     }
   };
 
-  // Get formatted date for display
-  const getFormattedDate = (dateString) => {
-    if (!dateString) return "";
-    
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+  // Use the imported formatDeadlineDate function for date formatting
 
   // Get status badge styling
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case "Pending":
         return "bg-yellow-100 text-yellow-800";
-      case "In Progress":
-        return "bg-blue-100 text-blue-800";
-      case "Waiting for Parts":
-        return "bg-purple-100 text-purple-800";
+
       case "Completed":
         return "bg-green-100 text-green-800";
       case "Cannot Repair":
@@ -276,328 +287,122 @@ const ViewRepairModal = ({
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-md p-6 w-full max-w-4xl max-h-screen overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-white rounded-md p-6 w-full h-full max-h-screen overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
           <div className="flex items-center">
-            <h2 className="text-lg font-semibold">Repair #{repair.id}</h2>
+            <h2 className="text-xl font-semibold">Repair #{repair.id}</h2>
             <span className={`ml-3 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(repair.status)}`}>
               {repair.status}
             </span>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex items-center space-x-2">
             {!isEditing && (
               <>
                 <button
                   onClick={handlePrintBill}
-                  className="text-indigo-600 hover:text-indigo-800 px-3 py-1 border border-indigo-600 rounded"
+                  className={`px-3 py-1 border rounded ${
+                    repair.status === "Picked Up"
+                      ? "text-purple-600 hover:text-purple-800 border-purple-600 hover:bg-purple-50"
+                      : "text-gray-400 border-gray-400 cursor-not-allowed"
+                  }`}
+                  disabled={repair.status !== "Picked Up"}
+                  title={
+                    repair.status === "Picked Up"
+                      ? "Generate Receipt PDF"
+                      : "PDF receipts can only be generated for repairs with 'Picked Up' status"
+                  }
                 >
                   Print Bill
                 </button>
                 <button
                   onClick={handlePrintWorkOrder}
-                  className="text-purple-600 hover:text-purple-800 px-3 py-1 border border-purple-600 rounded"
+                  className="text-indigo-600 hover:text-indigo-800 px-3 py-1 border border-indigo-600 rounded hover:bg-indigo-50"
+                  title="Generate Work Order PDF"
                 >
                   Work Order
                 </button>
                 <button
                   onClick={toggleEditMode}
-                  className="text-blue-600 hover:text-blue-800 px-3 py-1 border border-blue-600 rounded"
+                  className="text-blue-600 hover:text-blue-800 px-3 py-1 border border-blue-600 rounded hover:bg-blue-50"
+                  title="Edit repair details"
                 >
                   Edit
                 </button>
               </>
             )}
-            <button 
-              onClick={isEditing ? toggleEditMode : onClose} 
+            <button
+              onClick={isEditing ? toggleEditMode : onClose}
               className="text-gray-500 hover:text-gray-700"
             >
               ✕
             </button>
           </div>
         </div>
-        
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left Column */}
-            <div>
-              <h3 className="text-md font-medium mb-2">Customer Information</h3>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
+
+        <form onSubmit={handleSubmit} noValidate className="space-y-8">
+          {/* Customer Information Section */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-lg font-medium mb-4 text-blue-600 border-b pb-2">Customer Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-gray-700 mb-1 flex items-center">
                   Customer Name <span className="text-red-500">*</span>
+                  {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
                 </label>
-                {isEditing ? (
-                  <>
-                    <input
-                      type="text"
-                      name="customer"
-                      value={formData.customer}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      placeholder="Enter customer name"
-                      className={`w-full px-3 py-2 border ${errors.customer ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                      required
-                    />
-                    {errors.customer && (
-                      <p className="mt-1 text-sm text-red-500">{errors.customer}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">{repair.customer}</p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <>
-                    <input
-                      type="text"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      placeholder="Enter phone number (e.g., 071 1234567)"
-                      className={`w-full px-3 py-2 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                      required
-                    />
-                    {errors.phone && (
-                      <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">{repair.phone}</p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      placeholder="Enter email address"
-                      className={`w-full px-3 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                      required
-                    />
-                    {errors.email && (
-                      <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">{repair.email}</p>
-                )}
+                <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">{repair.customer}</p>
               </div>
 
-              <h3 className="text-md font-medium mb-2 mt-6">Additional Details</h3>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Repair Received Date
+              <div>
+                <label className="block text-gray-700 mb-1 flex items-center">
+                  Phone Number <span className="text-red-500">*</span>
+                  {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
                 </label>
-                <p className="py-2 px-3 bg-gray-50 rounded-md">
-                  {getFormattedDate(repair.dateReceived)}
-                </p>
+                <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">{repair.phone}</p>
               </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Advance Payment
+
+              <div>
+                <label className="block text-gray-700 mb-1 flex items-center">
+                  Email <span className="text-red-500">*</span>
+                  {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
                 </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="advancePayment"
-                    value={formData.advancePayment}
-                    onChange={handleChange}
-                    placeholder="Enter advance payment amount"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">
-                    Rs. {repair.advancePayment}
-                  </p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Deadline <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <>
-                    <input
-                      type="date"
-                      name="deadline"
-                      value={formData.deadline}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      className={`w-full px-3 py-2 border ${errors.deadline ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                      required
-                    />
-                    {errors.deadline && (
-                      <p className="mt-1 text-sm text-red-500">{errors.deadline}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">
-                    {getFormattedDate(repair.deadline)}
-                  </p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Technician <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <>
-                    <select
-                      name="technician"
-                      value={formData.technician}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      className={`w-full px-3 py-2 border ${errors.technician ? 'border-red-500' : 'border-gray-300'} rounded-md appearance-none`}
-                      required
-                    >
-                      {technicians.map((tech, index) => (
-                        <option key={index} value={tech}>
-                          {tech}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.technician && (
-                      <p className="mt-1 text-sm text-red-500">{errors.technician}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">{repair.technician}</p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Password (if provided)
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Enter device password if provided"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">
-                    {repair.password || "Not provided"}
-                  </p>
-                )}
-              </div>
-              
-              <div className="mb-4 flex items-center">
-                {isEditing ? (
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      name="isUnderWarranty"
-                      checked={formData.isUnderWarranty}
-                      onChange={handleChange}
-                      className="h-4 w-4 text-blue-600"
-                    />
-                    <span className="ml-2 text-gray-700">Under Warranty</span>
-                  </label>
-                ) : (
-                  <div className="py-2 px-3 bg-gray-50 rounded-md w-full">
-                    {repair.isUnderWarranty ? "Yes" : "No"}
-                  </div>
-                )}
+                <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">{repair.email}</p>
               </div>
             </div>
-            
-            {/* Right Column */}
-            <div>
-              <h3 className="text-md font-medium mb-2">Device Information</h3>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Device Type <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <>
-                    <input
-                      type="text"
-                      name="deviceType"
-                      value={formData.deviceType}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      placeholder="Enter device type (e.g., Laptop, Desktop, Printer)"
-                      className={`w-full px-3 py-2 border ${errors.deviceType ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                      required
-                    />
-                    {errors.deviceType && (
-                      <p className="mt-1 text-sm text-red-500">{errors.deviceType}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">{repair.deviceType}</p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Device Model <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <>
-                    <input
-                      type="text"
-                      name="deviceModel"
-                      value={formData.deviceModel}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      placeholder="Enter device model (e.g., Dell XPS 13, HP LaserJet)"
-                      className={`w-full px-3 py-2 border ${errors.deviceModel ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                      required
-                    />
-                    {errors.deviceModel && (
-                      <p className="mt-1 text-sm text-red-500">{errors.deviceModel}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">{repair.deviceModel}</p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Serial Number
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="serialNumber"
-                    value={formData.serialNumber}
-                    onChange={handleChange}
-                    placeholder="Enter device serial number if available"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">
+          </div>
+
+          {/* Device Information Section */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-lg font-medium mb-4 text-blue-600 border-b pb-2">Device Information</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-gray-700 mb-1 flex items-center">
+                    Device Type <span className="text-red-500">*</span>
+                    {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                  </label>
+                  <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">{repair.deviceType}</p>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-1 flex items-center">
+                    Device Model <span className="text-red-500">*</span>
+                    {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                  </label>
+                  <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">{repair.deviceModel}</p>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-1 flex items-center">
+                    Serial Number
+                    {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                  </label>
+                  <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">
                     {repair.serialNumber || "Not provided"}
                   </p>
-                )}
+                </div>
               </div>
-              
-              <div className="mb-4">
+
+              <div>
                 <label className="block text-gray-700 mb-1">
                   Repair Issue <span className="text-red-500">*</span>
                 </label>
@@ -618,15 +423,38 @@ const ViewRepairModal = ({
                     )}
                   </>
                 ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">{repair.issue}</p>
+                  <p className="py-2 px-3 bg-white rounded-md border border-gray-200">{repair.issue}</p>
                 )}
               </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Status
-                </label>
-                {isEditing ? (
+
+              <div className="flex items-center">
+                <div className="flex items-center">
+                  <span className="text-gray-700 mr-2">Under Warranty:</span>
+                  <span className={`${repair.isUnderWarranty ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
+                    {repair.isUnderWarranty ? "Yes" : "No"}
+                  </span>
+                  {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                </div>
+              </div>
+
+              {!isEditing && (
+                <div>
+                  <label className="block text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <div className="flex items-center py-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(repair.status)}`}>
+                      {repair.status}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {isEditing && (
+                <div>
+                  <label className="block text-gray-700 mb-1">
+                    Status
+                  </label>
                   <select
                     name="status"
                     value={formData.status}
@@ -639,134 +467,192 @@ const ViewRepairModal = ({
                       </option>
                     ))}
                   </select>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(repair.status)}`}>
-                      {repair.status}
-                    </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Additional Details Section */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-lg font-medium mb-4 text-blue-600 border-b pb-2">Additional Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 mb-1">
+                    Technician <span className="text-red-500">*</span>
+                  </label>
+                  {isEditing ? (
+                    <>
+                      <select
+                        name="technician"
+                        value={formData.technician}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={`w-full px-3 py-2 border ${errors.technician ? 'border-red-500' : 'border-gray-300'} rounded-md appearance-none`}
+                        required
+                      >
+                        {Array.isArray(technicians) && technicians.length > 0 ? (
+                          technicians.map((tech, index) => {
+                            // Handle both object and string technicians for backward compatibility
+                            const value = typeof tech === 'object' ? `${tech.User_ID}` : tech;
+                            const displayName = typeof tech === 'object' ?
+                              `${tech.first_name} ${tech.last_name || ''}`.trim() || tech.Username || `Technician ${tech.User_ID}` : tech;
+
+                            return (
+                              <option key={index} value={value}>
+                                {displayName}
+                              </option>
+                            );
+                          })
+                        ) : (
+                          <option value="" disabled>No technicians available</option>
+                        )}
+                      </select>
+                      {errors.technician && (
+                        <p className="mt-1 text-sm text-red-500">{errors.technician}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="py-2 px-3 bg-white rounded-md border border-gray-200">
+                      {/* Display technician name from the technicians array if possible */}
+                      {(() => {
+                        // Try to find the technician in the technicians array
+                        if (Array.isArray(technicians)) {
+                          const techId = repair.technician;
+                          console.log(`Looking for technician with ID: ${techId} in`, technicians);
+
+                          const foundTech = technicians.find(t =>
+                            (typeof t === 'object' && `${t.User_ID}` === techId) || t === techId
+                          );
+
+                          if (foundTech) {
+                            const displayName = typeof foundTech === 'object' ?
+                              `${foundTech.first_name} ${foundTech.last_name || ''}`.trim() || foundTech.Username || `Technician ${foundTech.User_ID}` :
+                              foundTech;
+
+                            console.log(`Found technician:`, foundTech, `Display name: ${displayName}`);
+                            return displayName;
+                          } else {
+                            console.log(`Technician with ID ${techId} not found in technicians array`);
+                          }
+                        }
+
+                        // Fallback to the stored technician value
+                        console.log(`Using fallback technician value: ${repair.technician}`);
+                        return repair.technician;
+                      })()}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-1 flex items-center">
+                    Deadline <span className="text-red-500">*</span>
+                    {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                  </label>
+                  <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">
+                    {formatDeadlineDate(repair.deadline)}
                   </p>
-                )}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-1">
+                    Repair Received Date
+                  </label>
+                  <p className="py-2 px-3 bg-white rounded-md border border-gray-200">
+                    {formatDeadlineDate(repair.dateReceived)}
+                  </p>
+                </div>
               </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Estimated Cost <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <>
-                    <input
-                      type="text"
-                      name="estimatedCost"
-                      value={formData.estimatedCost}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      placeholder="Enter estimated repair cost"
-                      className={`w-full px-3 py-2 border ${errors.estimatedCost ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                      required
-                    />
-                    {errors.estimatedCost && (
-                      <p className="mt-1 text-sm text-red-500">{errors.estimatedCost}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 mb-1 flex items-center">
+                    Estimated Cost <span className="text-red-500">*</span>
+                    {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                  </label>
+                  <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">
                     Rs. {repair.estimatedCost}
                   </p>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Products/Parts Needed
-                </label>
-                {isEditing ? (
-                  <>
-                    <div className="flex space-x-2">
-                      <input
-                        type="text"
-                        value={productInput}
-                        onChange={(e) => setProductInput(e.target.value)}
-                        placeholder="Enter product or part name"
-                        className="flex-grow px-3 py-2 border border-gray-300 rounded-md"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddProduct}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="mt-2">
-                      {formData.products.length > 0 ? (
-                        <ul className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-2">
-                          {formData.products.map((product, index) => (
-                            <li key={index} className="flex justify-between items-center py-1">
-                              <span>{product}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveProduct(index)}
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                ✕
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-500 mt-1">No products added yet</p>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="py-2 px-3 bg-gray-50 rounded-md">
-                    {repair.products && repair.products.length > 0 ? (
-                      <ul className="list-disc pl-5">
-                        {repair.products.map((product, index) => (
-                          <li key={index}>{product}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No products listed</p>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-700 mb-1">
-                  Additional Notes
-                </label>
-                {isEditing ? (
-                  <textarea
-                    name="additionalNotes"
-                    value={formData.additionalNotes}
-                    onChange={handleChange}
-                    placeholder="Enter any additional notes about the repair"
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  ></textarea>
-                ) : (
-                  <p className="py-2 px-3 bg-gray-50 rounded-md">
-                    {repair.additionalNotes || "No additional notes"}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-1 flex items-center">
+                    Advance Payment
+                    {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                  </label>
+                  <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">
+                    Rs. {repair.advancePayment}
                   </p>
-                )}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-1">
+                    Extra Expenses
+                  </label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="extraExpenses"
+                      value={formData.extraExpenses}
+                      onChange={handleChange}
+                      placeholder="Enter additional expenses"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  ) : (
+                    <p className="py-2 px-3 bg-white rounded-md border border-gray-200">
+                      Rs. {repair.extraExpenses || "0.00"}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-1 flex items-center">
+                    Password (if provided)
+                    {isEditing && <span className="ml-2 text-xs text-gray-500 italic">(Read-only)</span>}
+                  </label>
+                  <p className="py-2 px-3 bg-gray-50 rounded-md border border-gray-200">
+                    {repair.password || "Not provided"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="md:col-span-3">
+                <div>
+                  <label className="block text-gray-700 mb-1">
+                    Additional Notes
+                  </label>
+                  {isEditing ? (
+                    <textarea
+                      name="additionalNotes"
+                      value={formData.additionalNotes}
+                      onChange={handleChange}
+                      placeholder="Enter any additional notes about the repair"
+                      rows="5"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    ></textarea>
+                  ) : (
+                    <p className="py-2 px-3 bg-white rounded-md border border-gray-200 min-h-24">
+                      {repair.additionalNotes || "No additional notes"}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-          
+
           {isEditing && (
-            <div className="mt-6 flex justify-end">
+            <div className="flex justify-end space-x-4 mt-6">
               <button
                 type="button"
                 onClick={toggleEditMode}
-                className="mr-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Update Repair
               </button>

@@ -1,0 +1,78 @@
+/* Custom styles for the react-datepicker calendar */
+
+/* Calendar container */
+.react-datepicker {
+  font-family: inherit;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Calendar header */
+.react-datepicker__header {
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  padding-top: 0.5rem;
+}
+
+/* Month text */
+.react-datepicker__current-month {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+/* Day names */
+.react-datepicker__day-name {
+  color: #6b7280;
+  font-size: 0.75rem;
+  width: 2rem;
+  margin: 0.166rem;
+}
+
+/* Days */
+.react-datepicker__day {
+  width: 2rem;
+  height: 2rem;
+  line-height: 2rem;
+  margin: 0.166rem;
+  border-radius: 0.25rem;
+  color: #374151;
+}
+
+/* Hover state */
+.react-datepicker__day:hover {
+  background-color: #f3f4f6;
+}
+
+/* Selected day */
+.react-datepicker__day--selected {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+/* Today */
+.react-datepicker__day--today {
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Outside month */
+.react-datepicker__day--outside-month {
+  color: #9ca3af;
+}
+
+/* Navigation buttons */
+.react-datepicker__navigation {
+  top: 0.75rem;
+}
+
+/* Custom day class for days with repairs due */
+.bg-yellow-100 {
+  background-color: #fef3c7;
+}
+
+.hover\:bg-yellow-200:hover {
+  background-color: #fde68a;
+}

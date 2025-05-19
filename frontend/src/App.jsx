@@ -33,8 +33,11 @@ import CashierShop from "./pages/Cashier/CashierShop";
 
 
 // Technician components 
-// Uncomment and update when TechnicianLayout is available
-// import TechnicianLayout from "./pages/Technician/TechnicianLayout";
+
+import TechnicianLayout from "./pages/Technician/TechnicianLayout";
+import TechnicianDashboard from "./pages/Technician/TechnicianDashboard";
+//import TechnicianRepairs from "./pages/Technician/TechnicianRepairs";
+//import TechnicianWarrantyCheck from "./pages/Technician/TechnicianWarrantyCheck";
 
 // PrivateRoute Component for role-based access control
 const PrivateRoute = ({ roles, children }) => {
@@ -126,7 +129,7 @@ const App = () => {
         </Route>
         
         {/* Technician routes - Uncomment when ready */}
-        {/* <Route 
+        <Route 
           path="/technician" 
           element={
             <PrivateRoute roles={['Technician']}>
@@ -134,11 +137,11 @@ const App = () => {
             </PrivateRoute>
           }
         >
-          <Route index element={<Dashboard />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="repairs" element={<Orders />} />
-          <Route path="warranty-check" element={<Orders />} />
-        </Route> */}
+          <Route index element={<TechnicianDashboard />} />
+          <Route path="dashboard" element={<TechnicianDashboard />} />
+          {/* <Route path="repairs" element={<TechnicianRepairs />} /> */}
+          {/* <Route path="warranty-check" element={<TechnicianWarrantyCheck />} /> */}
+        </Route>
         
       </Routes>
     </Router>

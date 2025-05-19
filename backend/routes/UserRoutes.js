@@ -1,14 +1,15 @@
 const express = require('express');
 const multer = require('multer');
-const { 
-    registerUser, 
-    loginUser, 
-    getAllUsers, 
-    getUser, 
+const {
+    registerUser,
+    loginUser,
+    getAllUsers,
+    getUser,
     updateUserStatus,
     deleteUser,
     getUserProfile,
-    updateUserProfile
+    updateUserProfile,
+    getTechnicians
 } = require('../Controllers/UserController');
 const { authenticateUser } = require('../utils/authenticateUser');
 const { authorizeRole } = require('../utils/authorizeRoles');
@@ -18,7 +19,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB limit
+    fileSize: 5 * 1024 * 1024 // 5MB limit
   },
   fileFilter: (req, file, cb) => {
     // Accept only image files
@@ -41,6 +42,8 @@ router.use(authenticateUser);
 // Admin only routes
 router.post('/register-user', authorizeRole(['Admin']), registerUser);
 router.get('/', authorizeRole(['Admin']), getAllUsers);
+// Allow all authenticated users to access technicians list
+router.get('/technicians', getTechnicians);
 router.patch('/:id/status', authorizeRole(['Admin']), updateUserStatus);
 router.delete('/:id', authorizeRole(['Admin']), deleteUser);
 

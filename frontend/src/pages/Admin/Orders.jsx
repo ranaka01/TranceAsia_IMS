@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Button from "./Button";
-import SearchInput from "./SearchInput";
+import SearchInput from "../../components/UI/NewSearchInput";
 import CreateOrderModal from "./CreateOrderModal";
 import ViewOrderModal from "./ViewOrderModal";
 import ReceiveOrderModal from "./ReceiveOrderModal";

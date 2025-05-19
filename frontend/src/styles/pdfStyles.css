@@ -1,0 +1,143 @@
+/* PDF Receipt Styles */
+
+.pdf-container {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  color: #333;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.pdf-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.pdf-logo {
+  max-width: 200px;
+  max-height: 60px;
+}
+
+.pdf-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.pdf-subtitle {
+  font-size: 16px;
+  margin: 5px 0;
+}
+
+.pdf-section {
+  margin: 15px 0;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+.pdf-section-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.pdf-row {
+  display: flex;
+  margin: 5px 0;
+}
+
+.pdf-label {
+  font-weight: bold;
+  width: 150px;
+}
+
+.pdf-value {
+  flex: 1;
+}
+
+.pdf-financial {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 15px 0;
+}
+
+.pdf-financial th,
+.pdf-financial td {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.pdf-financial th {
+  background-color: #f2f2f2;
+}
+
+.pdf-financial .amount {
+  text-align: right;
+}
+
+.pdf-financial .total {
+  font-weight: bold;
+}
+
+.pdf-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-size: 100px;
+  color: rgba(220, 220, 220, 0.5);
+  font-weight: bold;
+  z-index: -1;
+}
+
+.pdf-signatures {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 50px;
+}
+
+.pdf-signature {
+  width: 45%;
+  text-align: center;
+}
+
+.pdf-signature-line {
+  border-top: 1px solid #333;
+  margin-bottom: 5px;
+}
+
+.pdf-footer {
+  margin-top: 50px;
+  text-align: center;
+  font-size: 12px;
+  border-top: 1px solid #ddd;
+  padding-top: 10px;
+}
+
+.pdf-thank-you {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.pdf-copyright {
+  font-size: 10px;
+  color: #666;
+}
+
+@media print {
+  .pdf-container {
+    padding: 0;
+  }
+  
+  .pdf-section {
+    break-inside: avoid;
+  }
+  
+  .pdf-watermark {
+    display: block !important;
+  }
+}

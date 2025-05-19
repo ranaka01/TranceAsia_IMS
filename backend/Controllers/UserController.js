@@ -12,27 +12,27 @@ const registerUser = async (req, res) => {
 
         // Validate required fields
         if (!Username || !Email || !Password || !Role) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'fail',
-                message: 'Username, email, password, and role are required fields' 
+                message: 'Username, email, password, and role are required fields'
             });
         }
 
         // Validate allowed roles
         const allowedRoles = ['Admin', 'Technician', 'Cashier'];
         if (!allowedRoles.includes(Role)) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'fail',
-                message: 'Invalid role specified' 
+                message: 'Invalid role specified'
             });
         }
 
         // Check if email already exists
         const [existingUsers] = await db.query('SELECT * FROM User WHERE Email = ?', [Email]);
         if (existingUsers.length > 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'fail',
-                message: 'Email already in use' 
+                message: 'Email already in use'
             });
         }
 
@@ -54,9 +54,9 @@ const registerUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Error registering user:', error);
-        return res.status(500).json({ 
+        return res.status(500).json({
             status: 'error',
-            message: 'Internal server error' 
+            message: 'Internal server error'
         });
     }
 };
@@ -68,19 +68,19 @@ const loginUser = async (req, res) => {
 
         // Validate required fields
         if (!email || !password) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'fail',
-                message: 'Email and password are required' 
+                message: 'Email and password are required'
             });
         }
 
         // Find user by email
         const [users] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
-        
+
         if (users.length === 0) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 status: 'fail',
-                message: 'Invalid email or password' 
+                message: 'Invalid email or password'
             });
         }
 
@@ -88,18 +88,18 @@ const loginUser = async (req, res) => {
 
         // Check if user is active
         if (user.is_active === 0) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 status: 'fail',
-                message: 'User account has been deactivated' 
+                message: 'User account has been deactivated'
             });
         }
 
         // Verify password
         const validPassword = await bcrypt.compare(password, user.Password);
         if (!validPassword) {
-            return res.status(401).json({ 
+            return res.status(401).json({
                 status: 'fail',
-                message: 'Invalid email or password' 
+                message: 'Invalid email or password'
             });
         }
 
@@ -113,9 +113,9 @@ const loginUser = async (req, res) => {
         // Log the token to help with debugging
         console.log('Generated token:', token);
 
-        res.status(200).json({ 
+        res.status(200).json({
             status: 'success',
-            message: 'Login successful', 
+            message: 'Login successful',
             data: {
                 token,
                 user: {
@@ -128,9 +128,9 @@ const loginUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             status: 'error',
-            message: 'Internal server error' 
+            message: 'Internal server error'
         });
     }
 };
@@ -139,10 +139,10 @@ const loginUser = async (req, res) => {
 const getAllUsers = async (req, res) => {
     try {
         const [users] = await db.query(`
-            SELECT 
-                User_ID, Username, first_name, last_name, Email, Phone, Role, 
+            SELECT
+                User_ID, Username, first_name, last_name, Email, Phone, Role,
                 is_active, created_at, profile_image
-            FROM User 
+            FROM User
             ORDER BY User_ID DESC
         `);
 
@@ -155,9 +155,9 @@ const getAllUsers = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching users:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             status: 'error',
-            message: 'Internal server error' 
+            message: 'Internal server error'
         });
     }
 };
@@ -166,19 +166,19 @@ const getAllUsers = async (req, res) => {
 const getUser = async (req, res) => {
     try {
         const userId = req.params.id;
-        
+
         const [users] = await db.query(`
-            SELECT 
-                User_ID, Username, first_name, last_name, Email, Phone, Role, 
+            SELECT
+                User_ID, Username, first_name, last_name, Email, Phone, Role,
                 is_active, created_at, profile_image
-            FROM User 
+            FROM User
             WHERE User_ID = ?
         `, [userId]);
 
         if (users.length === 0) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 status: 'fail',
-                message: 'User not found' 
+                message: 'User not found'
             });
         }
 
@@ -190,9 +190,9 @@ const getUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching user:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             status: 'error',
-            message: 'Internal server error' 
+            message: 'Internal server error'
         });
     }
 };
@@ -203,11 +203,11 @@ const updateUserStatus = async (req, res) => {
         const userId = req.params.id;
         const { is_active } = req.body;
         const adminId = req.user.userId; // Get the admin user ID from the request
-        
+
         if (is_active === undefined || ![0, 1].includes(is_active)) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 status: 'fail',
-                message: 'Invalid status value. Must be 0 or 1.' 
+                message: 'Invalid status value. Must be 0 or 1.'
             });
         }
 
@@ -222,9 +222,9 @@ const updateUserStatus = async (req, res) => {
         // Check if user exists
         const [existingUsers] = await db.query('SELECT * FROM User WHERE User_ID = ?', [userId]);
         if (existingUsers.length === 0) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 status: 'fail',
-                message: 'User not found' 
+                message: 'User not found'
             });
         }
 
@@ -236,7 +236,7 @@ const updateUserStatus = async (req, res) => {
         if (is_active === 0) {
             // For demonstration purposes, log that we would invalidate the user's token
             console.log(`User ${userId} deactivated. Their tokens should be invalidated.`);
-            
+
             // In a production system, you might:
             // 1. Add the user's tokens to a blacklist in Redis or another store
             // 2. Or update their token version in the database to invalidate existing tokens
@@ -249,9 +249,9 @@ const updateUserStatus = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating user status:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             status: 'error',
-            message: 'Internal server error' 
+            message: 'Internal server error'
         });
     }
 };
@@ -261,7 +261,7 @@ const deleteUser = async (req, res) => {
     try {
         const userId = req.params.id;
         const adminId = req.user.userId; // Get the admin user ID from the request
-        
+
         // Prevent admin from deleting their own account
         if (parseInt(userId) === adminId) {
             return res.status(400).json({
@@ -273,15 +273,15 @@ const deleteUser = async (req, res) => {
         // Check if user exists
         const [existingUsers] = await db.query('SELECT * FROM User WHERE User_ID = ?', [userId]);
         if (existingUsers.length === 0) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 status: 'fail',
-                message: 'User not found' 
+                message: 'User not found'
             });
         }
 
         // Check if there are any dependencies before hard deletion
         // In a production environment, you might want to soft delete instead
-        
+
         // For now we'll just delete the user
         await db.query('DELETE FROM User WHERE User_ID = ?', [userId]);
 
@@ -292,9 +292,9 @@ const deleteUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Error deleting user:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             status: 'error',
-            message: 'Internal server error' 
+            message: 'Internal server error'
         });
     }
 };
@@ -315,10 +315,10 @@ const getUserProfile = async (req, res) => {
 
         // Get user data
         const [users] = await db.query(`
-            SELECT 
+            SELECT
                 User_ID, Username, first_name, last_name, Email, Phone, Role,
                 is_active, created_at, profile_image
-            FROM User 
+            FROM User
             WHERE User_ID = ?
         `, [userId]);
 
@@ -356,7 +356,7 @@ const updateUserProfile = async (req, res) => {
     try {
         const userId = req.params.id;
         const authUserId = req.user.userId; // Get the authenticated user's ID
-        
+
         // Make sure users can only update their own profile
         if (parseInt(userId) !== authUserId) {
             return res.status(403).json({
@@ -364,46 +364,46 @@ const updateUserProfile = async (req, res) => {
                 message: "You can only update your own profile"
             });
         }
-        
-        const { 
-            Username, 
-            Email, 
-            Phone, 
-            first_name, 
-            last_name, 
-            currentPassword, 
-            newPassword 
+
+        const {
+            Username,
+            Email,
+            Phone,
+            first_name,
+            last_name,
+            currentPassword,
+            newPassword
         } = req.body;
-        
+
         // Find user to verify they exist
         const [users] = await db.query('SELECT * FROM User WHERE User_ID = ?', [userId]);
-        
+
         if (users.length === 0) {
             return res.status(404).json({
                 status: 'fail',
                 message: 'User not found'
             });
         }
-        
+
         const user = users[0];
-        
+
         // Handle profile image upload if present
         let profileImageFilename = user.profile_image;
-        
+
         if (req.file) {
             // Generate a unique filename for the uploaded image
             profileImageFilename = `user_${userId}_${Date.now()}_${req.file.originalname.replace(/\s+/g, '_')}`;
-            
+
             // Create uploads directory if it doesn't exist
             const uploadsDir = path.join(__dirname, '..', 'uploads');
             if (!fs.existsSync(uploadsDir)) {
                 fs.mkdirSync(uploadsDir, { recursive: true });
             }
-            
+
             // Write the file
             fs.writeFileSync(path.join(uploadsDir, profileImageFilename), req.file.buffer);
         }
-        
+
         // If changing password, verify current password
         if (currentPassword && newPassword) {
             const validPassword = await bcrypt.compare(currentPassword, user.Password);
@@ -413,27 +413,27 @@ const updateUserProfile = async (req, res) => {
                     message: 'Current password is incorrect'
                 });
             }
-            
+
             // Hash the new password
             const hashedPassword = await bcrypt.hash(newPassword, 10);
-            
+
             // Update user with new password and profile image
             await db.query(`
-                UPDATE User 
-                SET 
-                Username = ?, 
-                Email = ?, 
-                Phone = ?, 
-                first_name = ?, 
+                UPDATE User
+                SET
+                Username = ?,
+                Email = ?,
+                Phone = ?,
+                first_name = ?,
                 last_name = ?,
                 Password = ?,
                 profile_image = ?
                 WHERE User_ID = ?
             `, [
-                Username || user.Username, 
-                Email || user.Email, 
-                Phone || user.Phone, 
-                first_name !== undefined ? first_name : user.first_name, 
+                Username || user.Username,
+                Email || user.Email,
+                Phone || user.Phone,
+                first_name !== undefined ? first_name : user.first_name,
                 last_name !== undefined ? last_name : user.last_name,
                 hashedPassword,
                 profileImageFilename,
@@ -442,39 +442,39 @@ const updateUserProfile = async (req, res) => {
         } else {
             // Update user without changing password
             await db.query(`
-                UPDATE User 
-                SET 
-                Username = ?, 
-                Email = ?, 
-                Phone = ?, 
-                first_name = ?, 
+                UPDATE User
+                SET
+                Username = ?,
+                Email = ?,
+                Phone = ?,
+                first_name = ?,
                 last_name = ?,
                 profile_image = ?
                 WHERE User_ID = ?
             `, [
-                Username || user.Username, 
-                Email || user.Email, 
-                Phone || user.Phone, 
-                first_name !== undefined ? first_name : user.first_name, 
+                Username || user.Username,
+                Email || user.Email,
+                Phone || user.Phone,
+                first_name !== undefined ? first_name : user.first_name,
                 last_name !== undefined ? last_name : user.last_name,
                 profileImageFilename,
                 userId
             ]);
         }
-        
+
         // Get updated user data to return
         const [updatedUsers] = await db.query(`
-            SELECT 
+            SELECT
                 User_ID, Username, first_name, last_name, Email, Phone, Role,
                 is_active, created_at, profile_image
-            FROM User 
+            FROM User
             WHERE User_ID = ?
         `, [userId]);
-        
+
         if (updatedUsers.length === 0) {
             throw new Error('Failed to retrieve updated user data');
         }
-        
+
         res.status(200).json({
             status: 'success',
             message: 'Profile updated successfully',
@@ -484,7 +484,7 @@ const updateUserProfile = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating profile:', error);
-        
+
         // Check for duplicate entry errors
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({
@@ -492,7 +492,7 @@ const updateUserProfile = async (req, res) => {
                 message: 'Email address is already in use'
             });
         }
-        
+
         res.status(500).json({
             status: 'error',
             message: 'Internal server error'
@@ -500,13 +500,60 @@ const updateUserProfile = async (req, res) => {
     }
 };
 
-module.exports = { 
-    registerUser, 
-    loginUser, 
+// Get all technicians (users with technician role)
+const getTechnicians = async (req, res) => {
+    try {
+        console.log('Backend: Fetching technicians from database...');
+
+        // Query to get all active technicians
+        const [technicians] = await db.query(`
+            SELECT
+                User_ID, Username, first_name, last_name, Email, Phone, Role
+            FROM User
+            WHERE Role = 'Technician' AND is_active = 1
+            ORDER BY first_name, last_name
+        `);
+
+        console.log(`Backend: Found ${technicians.length} technicians:`, technicians);
+
+        // If no technicians found, add some default ones for testing
+        if (technicians.length === 0) {
+            console.log('Backend: No technicians found, adding fallback data');
+
+            // Check if we need to add fallback technicians to the database
+            const [existingUsers] = await db.query(`
+                SELECT COUNT(*) as count FROM User WHERE Role = 'Technician'
+            `);
+
+            if (existingUsers[0].count === 0) {
+                console.log('Backend: No technicians in database, consider adding some');
+            }
+        }
+
+        res.status(200).json({
+            status: 'success',
+            results: technicians.length,
+            data: {
+                technicians
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching technicians:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Internal server error: ' + error.message
+        });
+    }
+};
+
+module.exports = {
+    registerUser,
+    loginUser,
     getAllUsers,
     getUser,
     updateUserStatus,
     deleteUser,
     getUserProfile,
-    updateUserProfile
+    updateUserProfile,
+    getTechnicians
 };
