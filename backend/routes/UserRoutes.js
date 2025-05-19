@@ -11,6 +11,11 @@ const {
     updateUserProfile,
     getTechnicians
 } = require('../Controllers/UserController');
+const {
+    forgotPassword,
+    verifyOTP,
+    resetPassword
+} = require('../Controllers/PasswordResetController');
 const { authenticateUser } = require('../utils/authenticateUser');
 const { authorizeRole } = require('../utils/authorizeRoles');
 
@@ -35,6 +40,9 @@ const router = express.Router();
 
 // Public routes
 router.post('/login', loginUser);
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-otp', verifyOTP);
+router.post('/reset-password', resetPassword);
 
 // Protected routes
 router.use(authenticateUser);

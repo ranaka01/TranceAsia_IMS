@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-import API from '../utils/api'; 
+import API from '../utils/api';
+import ForgotPasswordModal from '../components/ForgotPasswordModal';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -57,7 +59,7 @@ const Login = () => {
       }
     } catch (err) {
       console.error('Login error:', err);
-      
+
       if (err.response && err.response.data && err.response.data.message) {
         setError(err.response.data.message);
       } else if (err.message) {
@@ -75,13 +77,13 @@ const Login = () => {
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-center text-blue-800">Trance Asia Computers</h2>
         <h3 className="text-xl font-semibold mb-6 text-center">Login to Your Account</h3>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
             {error}
           </div>
         )}
-        
+
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
@@ -97,7 +99,7 @@ const Login = () => {
               required
             />
           </div>
-          
+
           <div className="mb-6">
             <label htmlFor="password" className="block text-gray-700 font-medium mb-2">
               Password
@@ -112,7 +114,7 @@ const Login = () => {
               required
             />
           </div>
-          
+
           <button
             type="submit"
             disabled={isLoading}
@@ -122,8 +124,24 @@ const Login = () => {
           >
             {isLoading ? 'Logging in...' : 'Login'}
           </button>
+
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => setIsForgotPasswordOpen(true)}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            >
+              Forgot Password?
+            </button>
+          </div>
         </form>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+      />
     </div>
   );
 };
