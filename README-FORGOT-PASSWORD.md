@@ -29,8 +29,8 @@ node scripts/createPasswordResetTable.js
 
 ```
 EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_SECURE=false
+EMAIL_PORT=465
+EMAIL_SECURE=true
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_app_password_here
 ```

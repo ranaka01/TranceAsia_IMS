@@ -1,6 +1,14 @@
 const Repair = require('../Models/RepairModel');
 const Customer = require('../Models/Admin/CustomerModel');
+const Notification = require('../Models/NotificationModel');
 const db = require('../db');
+
+// Choose the appropriate email service based on environment
+const emailService = process.env.NODE_ENV === 'development'
+  ? require('../utils/mockEmailService')  // Use mock service in development
+  : require('../utils/emailService');     // Use real service in production
+
+const { sendRepairStatusUpdateEmail } = emailService;
 
 // Get all repairs
 exports.getAllRepairs = async (req, res) => {
@@ -165,7 +173,7 @@ exports.updateRepair = async (req, res) => {
 exports.updateRepairStatus = async (req, res) => {
   try {
     const repairId = req.params.id;
-    const { status } = req.body;
+    const { status, previousStatus } = req.body;
 
     if (!status) {
       return res.status(400).json({
@@ -184,13 +192,79 @@ exports.updateRepairStatus = async (req, res) => {
       });
     }
 
+    // Get the previous status if not provided
+    const oldStatus = previousStatus || existingRepair.status;
+
+    // Update the repair status
     await Repair.updateStatus(repairId, status);
+
+    // Create a notification for the status change
+    try {
+      console.log('Creating notification with data:', {
+        repairId: existingRepair.id,
+        customer: existingRepair.customer,
+        deviceType: existingRepair.deviceType,
+        deviceModel: existingRepair.deviceModel,
+        previousStatus: oldStatus,
+        newStatus: status,
+        technician: existingRepair.technician
+      });
+
+      const notificationId = await Notification.createRepairStatusNotification({
+        repairId: existingRepair.id,
+        customer: existingRepair.customer,
+        deviceType: existingRepair.deviceType,
+        deviceModel: existingRepair.deviceModel,
+        previousStatus: oldStatus,
+        newStatus: status,
+        technician: existingRepair.technician
+      });
+
+      console.log(`Created notification #${notificationId} for repair #${repairId} status change from ${oldStatus} to ${status}`);
+    } catch (notificationError) {
+      console.error("Error creating notification:", notificationError);
+      console.error("Error details:", notificationError.stack);
+      // Continue with the response even if notification creation fails
+    }
+
+    // Prepare response object
+    const responseData = {
+      message: 'Repair status updated successfully',
+      emailSent: false,
+      notificationCreated: true
+    };
+
+    // Send email notification if customer email is available and not "Not Available"
+    if (existingRepair.email && existingRepair.email !== 'Not Available') {
+      try {
+        // Prepare repair data for email
+        const repairData = {
+          repairId: existingRepair.id,
+          customerName: existingRepair.customer,
+          deviceName: existingRepair.deviceType,
+          deviceModel: existingRepair.deviceModel,
+          newStatus: status
+        };
+
+        // Send the email
+        await sendRepairStatusUpdateEmail(existingRepair.email, repairData);
+
+        // Update response to indicate email was sent
+        responseData.emailSent = true;
+        responseData.message = 'Repair status updated successfully and notification email sent';
+      } catch (emailError) {
+        console.error("Error sending status update email:", emailError);
+        responseData.emailError = emailError.message;
+        responseData.message = 'Repair status updated successfully but failed to send notification email';
+      }
+    } else {
+      responseData.emailSkipped = true;
+      responseData.message = 'Repair status updated successfully (email notification skipped - no valid email)';
+    }
 
     res.status(200).json({
       status: 'success',
-      data: {
-        message: 'Repair status updated successfully'
-      }
+      data: responseData
     });
   } catch (error) {
     console.error("Error in updateRepairStatus:", error);

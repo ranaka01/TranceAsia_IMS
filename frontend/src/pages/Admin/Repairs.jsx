@@ -337,22 +337,24 @@ const RepairManagement = () => {
     setIsStatusModalOpen(false);
   };
 
-  const handleUpdateStatus = async (newStatus) => {
+  const handleUpdateStatus = async (newStatus, previousStatus) => {
     try {
-      console.log(`Updating repair #${currentRepair.id} status from "${currentRepair.status}" to "${newStatus}"`);
+      console.log(`Updating repair #${currentRepair.id} status from "${previousStatus}" to "${newStatus}"`);
 
       // Validate the status transition
-      if (!isValidStatusTransition(currentRepair.status, newStatus)) {
-        const errorMessage = getInvalidTransitionMessage(currentRepair.status, newStatus);
+      if (!isValidStatusTransition(previousStatus, newStatus)) {
+        const errorMessage = getInvalidTransitionMessage(previousStatus, newStatus);
         console.error("Invalid status transition:", errorMessage);
         toast.error(errorMessage);
         return;
       }
 
       try {
-        // Call the API to update the status
-        await updateRepairStatus(currentRepair.id, newStatus);
-        toast.success(`Repair status updated successfully from "${currentRepair.status}" to "${newStatus}"`);
+        // Call the API to update the status with previous status
+        const response = await updateRepairStatus(currentRepair.id, newStatus, previousStatus);
+
+        // The toast notification is now handled in the StatusChangeModal component
+        // based on the email sending status
 
         // Refresh the repairs list
         const repairsData = await getAllRepairs();
@@ -368,13 +370,18 @@ const RepairManagement = () => {
 
         setIsStatusModalOpen(false);
         setCurrentRepair(null);
+
+        // Return the response so StatusChangeModal can handle notifications
+        return response;
       } catch (apiError) {
         console.error("API Error updating repair status:", apiError);
         toast.error("Failed to update repair status: " + (apiError.response?.data?.message || apiError.message));
+        throw apiError; // Re-throw to let StatusChangeModal handle the error
       }
     } catch (validationError) {
       console.error("Validation error in handleUpdateStatus:", validationError);
       toast.error("Validation error: " + validationError.message);
+      throw validationError; // Re-throw to let StatusChangeModal handle the error
     }
   };
 

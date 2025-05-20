@@ -38,7 +38,18 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
 
     try {
       const response = await API.post('/users/forgot-password', { email });
-      setSuccessMessage(response.data.message || 'OTP sent to your email address');
+
+      // Check if we're in test mode (development environment)
+      if (response.data.testOtp) {
+        setSuccessMessage(
+          `${response.data.message} Test OTP: ${response.data.testOtp} (Only shown in development mode)`
+        );
+        // Auto-fill OTP for testing
+        setOtp(response.data.testOtp);
+      } else {
+        setSuccessMessage(response.data.message || 'OTP sent to your email address');
+      }
+
       setStep(2);
     } catch (err) {
       console.error('Error requesting OTP:', err);
@@ -102,10 +113,10 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
         otp,
         newPassword
       });
-      
+
       setSuccessMessage(response.data.message || 'Password reset successfully');
       toast.success('Password reset successfully! You can now log in with your new password.');
-      
+
       // Close modal after a short delay
       setTimeout(() => {
         handleClose();
@@ -124,7 +135,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-100 bg-opacity-50">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-center text-blue-800">Trance Asia Computers</h2>
-        
+
         {/* Step 1: Email Verification */}
         {step === 1 && (
           <>
@@ -132,13 +143,13 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
             <p className="mb-4 text-gray-600 text-center">
               Enter your email address and we'll send you a verification code to reset your password.
             </p>
-            
+
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
                 {error}
               </div>
             )}
-            
+
             <form onSubmit={handleEmailSubmit}>
               <div className="mb-4">
                 <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
@@ -155,7 +166,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                   disabled={isLoading}
                 />
               </div>
-              
+
               <div className="flex justify-between mt-6">
                 <button
                   type="button"
@@ -176,29 +187,29 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
             </form>
           </>
         )}
-        
+
         {/* Step 2: OTP Verification */}
         {step === 2 && (
           <>
             <h3 className="text-xl font-semibold mb-6 text-center">Enter Verification Code</h3>
-            
+
             {successMessage && (
               <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
                 {successMessage}
               </div>
             )}
-            
+
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
                 {error}
               </div>
             )}
-            
+
             <p className="mb-4 text-gray-600 text-center">
               We've sent a 6-digit verification code to <strong>{email}</strong>.
               Please enter it below.
             </p>
-            
+
             <form onSubmit={handleOtpSubmit}>
               <div className="mb-4">
                 <label htmlFor="otp" className="block text-gray-700 font-medium mb-2">
@@ -216,7 +227,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                   disabled={isLoading}
                 />
               </div>
-              
+
               <div className="flex justify-between mt-6">
                 <button
                   type="button"
@@ -237,24 +248,24 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
             </form>
           </>
         )}
-        
+
         {/* Step 3: New Password */}
         {step === 3 && (
           <>
             <h3 className="text-xl font-semibold mb-6 text-center">Set New Password</h3>
-            
+
             {successMessage && (
               <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
                 {successMessage}
               </div>
             )}
-            
+
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
                 {error}
               </div>
             )}
-            
+
             <form onSubmit={handlePasswordReset}>
               <div className="mb-4">
                 <label htmlFor="newPassword" className="block text-gray-700 font-medium mb-2">
@@ -274,7 +285,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                   Password must be at least 8 characters long
                 </p>
               </div>
-              
+
               <div className="mb-4">
                 <label htmlFor="confirmPassword" className="block text-gray-700 font-medium mb-2">
                   Confirm Password
@@ -290,7 +301,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                   disabled={isLoading}
                 />
               </div>
-              
+
               <div className="flex justify-between mt-6">
                 <button
                   type="button"

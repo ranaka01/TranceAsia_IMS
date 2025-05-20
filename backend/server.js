@@ -10,6 +10,8 @@ const PurchaseRoutes = require('./routes/Admin/PurchaseRoutes');
 const SalesRoutes = require('./routes/Admin/SalesRoutes');
 const InventoryRoutes = require('./routes/Admin/InventoryRoutes');
 const RepairRoutes = require('./routes/RepairRoutes');
+const NotificationRoutes = require('./routes/NotificationRoutes');
+const DashboardRoutes = require('./routes/Admin/DashboardRoutes');
 const cors = require('cors');
 const fs = require('fs'); // Add this for file system operations
 
@@ -39,6 +41,8 @@ app.use('/purchases', PurchaseRoutes);
 app.use('/sales', SalesRoutes);
 app.use('/inventory', InventoryRoutes);
 app.use('/repairs', RepairRoutes);
+app.use('/notifications', NotificationRoutes);
+app.use('/dashboard', DashboardRoutes);
 //app.use('/products', require('./routes/productRoute'));
 
 

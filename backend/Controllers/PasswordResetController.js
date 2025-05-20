@@ -2,7 +2,13 @@ const db = require('../db');
 const bcrypt = require('bcryptjs');
 const User = require('../Models/UserModel');
 const { generateOTP, isOTPExpired } = require('../utils/otpGenerator');
-const { sendOTPEmail } = require('../utils/emailService');
+
+// Choose the appropriate email service based on environment
+const emailService = process.env.NODE_ENV === 'development'
+  ? require('../utils/mockEmailService')  // Use mock service in development
+  : require('../utils/emailService');     // Use real service in production
+
+const { sendOTPEmail } = emailService;
 
 /**
  * Handle forgot password request
@@ -38,6 +44,7 @@ const forgotPassword = async (req, res) => {
 
     // Generate a 6-digit OTP
     const otp = generateOTP(6);
+    console.log('Generated OTP for testing:', otp); // For debugging only
 
     // Delete any existing OTP for this user
     await db.query('DELETE FROM password_reset_tokens WHERE user_id = ?', [user.User_ID]);
@@ -48,13 +55,32 @@ const forgotPassword = async (req, res) => {
       [user.User_ID, email, otp]
     );
 
-    // Send OTP email
-    await sendOTPEmail(email, otp);
+    try {
+      // Send OTP email
+      await sendOTPEmail(email, otp);
 
-    res.status(200).json({
-      status: 'success',
-      message: 'OTP sent to your email address'
-    });
+      res.status(200).json({
+        status: 'success',
+        message: 'OTP sent to your email address'
+      });
+    } catch (emailError) {
+      console.error('Failed to send email:', emailError);
+
+      // For development/testing purposes only
+      if (process.env.NODE_ENV === 'development') {
+        return res.status(200).json({
+          status: 'success',
+          message: 'OTP generated successfully but email sending failed. Using test mode.',
+          testOtp: otp // Only include in development mode
+        });
+      }
+
+      // In production, still return a user-friendly message
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to send OTP email. Please try again later or contact support.'
+      });
+    }
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({

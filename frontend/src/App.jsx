@@ -30,9 +30,11 @@ import CashierLayout from "./pages/Cashier/CashierLayout";
 import CashierCustomers from "./pages/Cashier/CashierCustomers";
 import CashierProducts from "./pages/Cashier/CashierProducts";
 import CashierShop from "./pages/Cashier/CashierShop";
+import CashierTransactions from "./pages/Cashier/CashierTransactions";
+import CashierReports from "./pages/Cashier/CashierReports";
 
 
-// Technician components 
+// Technician components
 
 import TechnicianLayout from "./pages/Technician/TechnicianLayout";
 import TechnicianDashboard from "./pages/Technician/TechnicianDashboard";
@@ -78,15 +80,15 @@ const App = () => {
         {/* Default routes */}
         <Route path="/" element={<Navigate to="/admin" />} />
         <Route path="*" element={<Navigate to="/login" />} />
-        
+
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/access-denied" element={<AccessDenied />} />
-        
+
         {/* Admin routes */}
-        <Route 
-          path="/admin" 
+        <Route
+          path="/admin"
           element={
             <PrivateRoute roles={['Admin']}>
               <AdminLayout />
@@ -110,27 +112,27 @@ const App = () => {
           <Route path="return" element={<Return/>} />
 
         </Route>
-        
+
         {/* Cashier routes */}
-        <Route 
-          path="/cashier" 
+        <Route
+          path="/cashier"
           element={
             <PrivateRoute roles={['Cashier']}>
               <CashierLayout />
             </PrivateRoute>
           }
         >
-          <Route index element={<CashierShop/>} />
+          <Route index element={<Navigate to="/cashier/transactions" replace />} />
           <Route path="customers" element={<CashierCustomers />} />
           <Route path="products" element={<CashierProducts />} />
           <Route path="shop" element={<CashierShop />} />
-          
-          
+          <Route path="transactions" element={<CashierTransactions />} />
+          <Route path="reports" element={<CashierReports />} />
         </Route>
-        
+
         {/* Technician routes - Uncomment when ready */}
-        <Route 
-          path="/technician" 
+        <Route
+          path="/technician"
           element={
             <PrivateRoute roles={['Technician']}>
               <TechnicianLayout />
@@ -142,7 +144,7 @@ const App = () => {
           {/* <Route path="repairs" element={<TechnicianRepairs />} /> */}
           {/* <Route path="warranty-check" element={<TechnicianWarrantyCheck />} /> */}
         </Route>
-        
+
       </Routes>
     </Router>
   );

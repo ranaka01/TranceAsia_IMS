@@ -1,8 +1,15 @@
-import React from 'react'
+import React from 'react';
+import TechnicianUserSettings from './TechnicianUserSettings';
+import RepairManagement from './TechnicianDashboard';
+import Navbar from './TechnicianNavbar';
 
 const TechnicianHome = () => {
   return (
-    <div>TechnicianHome</div>
+    <div>
+      <Navbar />
+      <RepairManagement />
+      
+    </div>
   )
 }
 

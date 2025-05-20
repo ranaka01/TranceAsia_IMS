@@ -4,6 +4,7 @@ import {
   isValidStatusTransition,
   getInvalidTransitionMessage
 } from "../../utils/repairStatusUtils";
+import { toast } from "react-toastify";
 
 const StatusChangeModal = ({
   isOpen,
@@ -75,8 +76,18 @@ const StatusChangeModal = ({
       console.log(`Submitting status change from ${repair.status} to ${selectedStatus}`);
 
       try {
-        // Call the update function with the new status
-        await onUpdate(selectedStatus);
+        // Call the update function with the new status and previous status
+        const response = await onUpdate(selectedStatus, repair.status);
+
+        // Display appropriate toast notification based on email status
+        if (response?.data?.emailSent) {
+          toast.success(response.data.message || "Status updated and notification email sent");
+        } else if (response?.data?.emailSkipped) {
+          toast.info(response.data.message || "Status updated (email notification skipped - no valid email)");
+        } else if (response?.data?.emailError) {
+          toast.warning(response.data.message || "Status updated but failed to send notification email");
+        }
+
         // If we get here, the update was successful
       } catch (updateError) {
         console.error("Error from update function:", updateError);

@@ -101,9 +101,9 @@ export const updateRepair = async (id, repairData) => {
 };
 
 // Update repair status
-export const updateRepairStatus = async (id, status) => {
+export const updateRepairStatus = async (id, status, previousStatus) => {
   try {
-    console.log(`API call: Updating repair #${id} status to "${status}"`);
+    console.log(`API call: Updating repair #${id} status from "${previousStatus}" to "${status}"`);
 
     // Ensure status is a string
     const statusStr = String(status).trim();
@@ -112,10 +112,13 @@ export const updateRepairStatus = async (id, status) => {
       throw new Error("Status cannot be empty");
     }
 
-    // Make the API call with the status in the request body
+    // Make the API call with the status and previousStatus in the request body
     // Note: The validation is now handled in the frontend components
     // to avoid circular dependencies and browser compatibility issues
-    const response = await API.patch(`/repairs/${id}/status`, { status: statusStr });
+    const response = await API.patch(`/repairs/${id}/status`, {
+      status: statusStr,
+      previousStatus: previousStatus
+    });
 
     console.log(`API response for status update:`, response.data);
     return response.data;

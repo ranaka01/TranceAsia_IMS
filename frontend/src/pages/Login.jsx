@@ -51,7 +51,8 @@ const Login = () => {
       if (userRole === 'Admin') {
         navigate('/admin');
       } else if (userRole === 'Cashier') {
-        navigate('/cashier');
+        // Redirect Cashier users directly to the Transactions page
+        navigate('/cashier/transactions');
       } else if (userRole === 'Technician') {
         navigate('/technician');
       } else {
