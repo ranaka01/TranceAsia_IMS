@@ -3,7 +3,7 @@ import { FaSearch, FaCheckCircle, FaTimesCircle, FaCalendarAlt, FaClock, FaTimes
 import { toast } from 'react-toastify';
 import { checkWarrantyBySerialNumber, searchSerialNumbers } from '../../services/repairService';
 
-const Warranty = () => {
+const CashierWarranty = () => {
   // State management
   const [serialNumber, setSerialNumber] = useState('');
   const [warrantyInfo, setWarrantyInfo] = useState(null);
@@ -343,4 +343,4 @@ const Warranty = () => {
   );
 };
 
-export default Warranty;
+export default CashierWarranty;

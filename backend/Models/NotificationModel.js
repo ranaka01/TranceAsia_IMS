@@ -1,4 +1,5 @@
 const db = require('../db');
+const websocketManager = require('../utils/websocketManager');
 
 class Notification {
   // Get all notifications for a user with optional filters
@@ -27,9 +28,14 @@ class Notification {
 
       const params = [];
 
-      // Always return all notifications regardless of user_id
-      // This ensures admin users can see all notifications
+      // Start with a WHERE clause
       query += ` WHERE 1=1`; // Always true condition to simplify adding AND clauses
+
+      // Add user filter if userId is provided
+      if (userId) {
+        query += ` AND (user_id = ? OR user_id IS NULL)`;
+        params.push(userId);
+      }
 
       // Add filter for read/unread notifications
       if (isRead !== undefined) {
@@ -151,10 +157,46 @@ class Notification {
       console.log('SQL Params:', params);
 
       const [result] = await db.query(query, params);
+      const notificationId = result.insertId;
 
-      console.log('Notification created with ID:', result.insertId);
+      console.log('Notification created with ID:', notificationId);
 
-      return result.insertId;
+      // Fetch the created notification to send via WebSocket
+      const [notifications] = await db.query(
+        `SELECT
+          id, title, message, type, reference_id, reference_type,
+          data, is_read, created_at, updated_at
+        FROM notifications
+        WHERE id = ?`,
+        [notificationId]
+      );
+
+      if (notifications.length > 0) {
+        const notification = notifications[0];
+
+        // Parse data field if it exists
+        if (notification.data) {
+          try {
+            notification.data = JSON.parse(notification.data);
+          } catch (err) {
+            console.error(`Error parsing data for notification ID ${notification.id}:`, err);
+            notification.data = { error: 'Invalid data format' };
+          }
+        }
+
+        // Add isRead property for consistency
+        notification.isRead = notification.is_read === 1;
+
+        // Send notification via WebSocket if userId is provided
+        if (userId) {
+          websocketManager.sendNotificationToUser(userId, notification);
+        } else {
+          // If no specific user, broadcast to all users
+          websocketManager.broadcastNotification(notification);
+        }
+      }
+
+      return notificationId;
     } catch (error) {
       console.error('Error details in create notification:', error);
       console.error('Error stack:', error.stack);
@@ -180,8 +222,18 @@ class Notification {
       }
 
       const [result] = await db.query(query, params);
+      const success = result.affectedRows > 0;
 
-      return result.affectedRows > 0;
+      if (success && userId) {
+        // Send notification update via WebSocket
+        websocketManager.sendNotificationUpdateToUser(userId, {
+          type: 'read',
+          id,
+          isRead: true
+        });
+      }
+
+      return success;
     } catch (error) {
       throw new Error(`Error marking notification as read: ${error.message}`);
     }
@@ -205,8 +257,18 @@ class Notification {
       }
 
       const [result] = await db.query(query, params);
+      const affectedRows = result.affectedRows;
 
-      return result.affectedRows;
+      if (affectedRows > 0 && userId) {
+        // Send notification update via WebSocket
+        websocketManager.sendNotificationUpdateToUser(userId, {
+          type: 'read_all',
+          count: affectedRows,
+          isRead: true
+        });
+      }
+
+      return affectedRows;
     } catch (error) {
       throw new Error(`Error marking all notifications as read: ${error.message}`);
     }
@@ -229,8 +291,17 @@ class Notification {
       }
 
       const [result] = await db.query(query, params);
+      const success = result.affectedRows > 0;
 
-      return result.affectedRows > 0;
+      if (success && userId) {
+        // Send notification update via WebSocket
+        websocketManager.sendNotificationUpdateToUser(userId, {
+          type: 'delete',
+          id
+        });
+      }
+
+      return success;
     } catch (error) {
       throw new Error(`Error deleting notification: ${error.message}`);
     }
@@ -249,8 +320,17 @@ class Notification {
       }
 
       const [result] = await db.query(query, params);
+      const affectedRows = result.affectedRows;
 
-      return result.affectedRows;
+      if (affectedRows > 0 && userId) {
+        // Send notification update via WebSocket
+        websocketManager.sendNotificationUpdateToUser(userId, {
+          type: 'delete_all',
+          count: affectedRows
+        });
+      }
+
+      return affectedRows;
     } catch (error) {
       throw new Error(`Error deleting all notifications: ${error.message}`);
     }

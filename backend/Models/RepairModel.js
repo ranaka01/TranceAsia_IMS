@@ -18,6 +18,7 @@ class Repair {
         r.status,
         r.date_received,
         r.deadline,
+        r.date_completed,
         r.estimated_cost,
         r.advance_payment,
         r.extra_expenses,
@@ -69,6 +70,7 @@ class Repair {
           status: row.status,
           dateReceived: row.date_received,
           deadline: row.deadline,
+          dateCompleted: row.date_completed,
           estimatedCost: parseFloat(row.estimated_cost).toLocaleString(),
           advancePayment: parseFloat(row.advance_payment).toLocaleString(),
           extraExpenses: parseFloat(row.extra_expenses || 0).toLocaleString(),
@@ -103,6 +105,7 @@ class Repair {
           r.status,
           r.date_received,
           r.deadline,
+          r.date_completed,
           r.estimated_cost,
           r.advance_payment,
           r.extra_expenses,
@@ -141,6 +144,7 @@ class Repair {
         status: row.status,
         dateReceived: row.date_received,
         deadline: row.deadline,
+        dateCompleted: row.date_completed,
         estimatedCost: parseFloat(row.estimated_cost).toLocaleString(),
         advancePayment: parseFloat(row.advance_payment).toLocaleString(),
         extraExpenses: parseFloat(row.extra_expenses || 0).toLocaleString(),
@@ -294,7 +298,17 @@ class Repair {
   // Update repair status
   static async updateStatus(id, status) {
     try {
-      await db.query('UPDATE repairs SET status = ? WHERE repair_id = ?', [status, id]);
+      // If status is "Picked Up", set the date_completed field to current date
+      if (status === 'Picked Up') {
+        const currentDate = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+        await db.query(
+          'UPDATE repairs SET status = ?, date_completed = ? WHERE repair_id = ?',
+          [status, currentDate, id]
+        );
+      } else {
+        // For other statuses, just update the status field
+        await db.query('UPDATE repairs SET status = ? WHERE repair_id = ?', [status, id]);
+      }
       return true;
     } catch (error) {
       throw new Error(`Error updating repair status: ${error.message}`);
@@ -434,6 +448,95 @@ class Repair {
       });
     } catch (error) {
       throw new Error(`Error searching serial numbers: ${error.message}`);
+    }
+  }
+
+  // Get repairs assigned to a specific technician with optional search
+  static async findByTechnician(technicianId, search = '') {
+    let query = `
+      SELECT
+        r.repair_id,
+        r.customer_id,
+        c.name as customer_name,
+        c.phone as customer_phone,
+        c.email as customer_email,
+        r.device_type,
+        r.device_model,
+        r.serial_number,
+        r.issue_description,
+        r.technician,
+        r.status,
+        r.date_received,
+        r.deadline,
+        r.date_completed,
+        r.estimated_cost,
+        r.advance_payment,
+        r.extra_expenses,
+        r.device_password,
+        r.additional_notes,
+        r.is_under_warranty
+      FROM
+        repairs r
+      LEFT JOIN
+        customers c ON r.customer_id = c.id
+      WHERE
+        r.technician = ?
+    `;
+
+    let params = [technicianId];
+
+    // Add search functionality if search parameter is provided
+    if (search) {
+      query += `
+        AND (
+          r.repair_id LIKE ? OR
+          c.name LIKE ? OR
+          c.phone LIKE ? OR
+          r.device_model LIKE ? OR
+          r.status LIKE ?
+        )
+      `;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    query += ' ORDER BY r.date_received DESC';
+
+    try {
+      const [rows] = await db.query(query, params);
+
+      // Format the results
+      const repairs = await Promise.all(rows.map(async (row) => {
+        // Get products for this repair
+        const products = await this.getRepairProducts(row.repair_id);
+
+        return {
+          id: row.repair_id.toString(),
+          customer: row.customer_name,
+          customerId: row.customer_id,
+          phone: row.customer_phone,
+          email: row.customer_email || 'Not Available',
+          deviceType: row.device_type,
+          deviceModel: row.device_model,
+          serialNumber: row.serial_number || '',
+          issue: row.issue_description,
+          technician: row.technician,
+          status: row.status,
+          dateReceived: row.date_received,
+          deadline: row.deadline,
+          dateCompleted: row.date_completed,
+          estimatedCost: parseFloat(row.estimated_cost).toLocaleString(),
+          advancePayment: parseFloat(row.advance_payment).toLocaleString(),
+          extraExpenses: parseFloat(row.extra_expenses || 0).toLocaleString(),
+          products: products.map(p => p.name),
+          password: row.device_password || '',
+          additionalNotes: row.additional_notes || '',
+          isUnderWarranty: row.is_under_warranty === 1
+        };
+      }));
+
+      return repairs;
+    } catch (error) {
+      throw new Error(`Error fetching technician repairs: ${error.message}`);
     }
   }
 }

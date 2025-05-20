@@ -102,54 +102,66 @@ const Dashboard = () => {
 
   // Prepare sales chart data
   const prepareSalesChartData = () => {
-    if (!salesChartData.length) return null;
+    if (!salesChartData || !salesChartData.length) return null;
 
     let labels = [];
     let salesData = [];
     let revenueData = [];
 
-    if (salesPeriod === 'daily') {
-      labels = salesChartData.map(item => {
-        const date = new Date(item.day);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      });
-      salesData = salesChartData.map(item => item.count);
-      revenueData = salesChartData.map(item => item.revenue);
-    } else if (salesPeriod === 'weekly') {
-      labels = salesChartData.map(item => {
-        const date = new Date(item.start_date);
-        return `Week of ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-      });
-      salesData = salesChartData.map(item => item.count);
-      revenueData = salesChartData.map(item => item.revenue);
-    } else if (salesPeriod === 'monthly') {
-      labels = salesChartData.map(item => {
-        const [year, month] = item.month.split('-');
-        return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      });
-      salesData = salesChartData.map(item => item.count);
-      revenueData = salesChartData.map(item => item.revenue);
-    }
+    try {
+      if (salesPeriod === 'daily') {
+        labels = salesChartData.map(item => {
+          const date = new Date(item.day);
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+        salesData = salesChartData.map(item => item.count);
+        revenueData = salesChartData.map(item => item.revenue);
+      } else if (salesPeriod === 'weekly') {
+        labels = salesChartData.map(item => {
+          if (!item.start_date) return 'Unknown';
+          const date = new Date(item.start_date);
+          return `Week of ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        });
+        salesData = salesChartData.map(item => item.count);
+        revenueData = salesChartData.map(item => item.revenue);
+      } else if (salesPeriod === 'monthly') {
+        labels = salesChartData.map(item => {
+          if (!item.month) return 'Unknown';
+          const [year, month] = item.month.split('-');
+          return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        });
+        salesData = salesChartData.map(item => item.count);
+        revenueData = salesChartData.map(item => item.revenue);
+      }
 
-    return {
-      labels,
-      datasets: [
-        {
-          label: 'Sales Count',
-          data: salesData,
-          borderColor: 'rgb(53, 162, 235)',
-          backgroundColor: 'rgba(53, 162, 235, 0.5)',
-          yAxisID: 'y',
-        },
-        {
-          label: 'Revenue',
-          data: revenueData,
-          borderColor: 'rgb(75, 192, 192)',
-          backgroundColor: 'rgba(75, 192, 192, 0.5)',
-          yAxisID: 'y1',
-        },
-      ],
-    };
+      // If we have no valid data points, return null
+      if (labels.length === 0 || salesData.every(item => !item) && revenueData.every(item => !item)) {
+        return null;
+      }
+
+      return {
+        labels,
+        datasets: [
+          {
+            label: 'Sales Count',
+            data: salesData,
+            borderColor: 'rgb(53, 162, 235)',
+            backgroundColor: 'rgba(53, 162, 235, 0.5)',
+            yAxisID: 'y',
+          },
+          {
+            label: 'Revenue',
+            data: revenueData,
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.5)',
+            yAxisID: 'y1',
+          },
+        ],
+      };
+    } catch (error) {
+      console.error("Error preparing sales chart data:", error);
+      return null;
+    }
   };
 
   // Prepare repair status chart data
@@ -334,8 +346,9 @@ const Dashboard = () => {
                 }}
               />
             ) : (
-              <div className="flex justify-center items-center h-full">
-                <p className="text-gray-500">No sales data available</p>
+              <div className="flex flex-col justify-center items-center h-full">
+                <p className="text-gray-500 mb-2">No sales data available for the selected period</p>
+                <p className="text-gray-400 text-sm">Try selecting a different time period or check back later when more sales data is available</p>
               </div>
             )}
           </div>
@@ -437,25 +450,17 @@ const Dashboard = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Quantity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {lowStockItems.map((item, index) => (
                   <tr key={index} className={item.remaining_quantity === 0 ? "bg-red-50" : ""}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.category || "Uncategorized"}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className={`px-2 py-1 rounded-full text-xs ${item.remaining_quantity === 0 ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>
                         {item.remaining_quantity}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <button className="px-3 py-1 bg-blue-100 text-blue-600 rounded-md text-sm hover:bg-blue-200">
-                        Restock
-                      </button>
                     </td>
                   </tr>
                 ))}

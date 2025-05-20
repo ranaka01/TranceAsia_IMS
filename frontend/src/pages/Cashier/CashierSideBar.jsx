@@ -114,6 +114,11 @@ const CashierSidebar = ({ onToggleSidebar }) => {
       title: "Customers",
       path: "/cashier/customers",
     },
+    {
+      icon: <MdPeople size={20} color={iconColors.customers} />,
+      title: "Warranty",
+      path: "/cashier/warranty",
+    },
   ];
 
   return (

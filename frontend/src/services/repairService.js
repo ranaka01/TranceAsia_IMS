@@ -176,3 +176,15 @@ export const searchSerialNumbers = async (query) => {
     throw error;
   }
 };
+
+// Get repairs assigned to the logged-in technician
+export const getTechnicianRepairs = async (search = '') => {
+  try {
+    console.log('Fetching repairs assigned to the logged-in technician');
+    const response = await API.get(`/repairs/technician/assigned${search ? `?search=${search}` : ''}`);
+    return response.data.data.repairs;
+  } catch (error) {
+    console.error('Error fetching technician repairs:', error);
+    throw error;
+  }
+};

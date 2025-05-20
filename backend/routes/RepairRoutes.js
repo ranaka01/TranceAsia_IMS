@@ -14,6 +14,8 @@ router.get('/', repairController.getAllRepairs);
 router.get('/search/serial-numbers', repairController.searchSerialNumbers);
 router.get('/products/with-stock', repairController.getProductsWithStock);
 router.get('/warranty/:serialNumber', repairController.checkWarrantyBySerialNumber);
+// Route for technicians to get their assigned repairs
+router.get('/technician/assigned', authorizeRole(['Technician']), repairController.getTechnicianRepairs);
 // Generic parameterized route should be last
 router.get('/:id', repairController.getRepairById);
 

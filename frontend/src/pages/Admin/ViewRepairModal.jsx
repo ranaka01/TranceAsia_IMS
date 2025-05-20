@@ -298,7 +298,7 @@ const ViewRepairModal = ({
           <div className="flex items-center space-x-2">
             {!isEditing && (
               <>
-                <button
+                {/* <button
                   onClick={handlePrintBill}
                   className={`px-3 py-1 border rounded ${
                     repair.status === "Picked Up"
@@ -320,7 +320,7 @@ const ViewRepairModal = ({
                   title="Generate Work Order PDF"
                 >
                   Work Order
-                </button>
+                </button> */}
                 <button
                   onClick={toggleEditMode}
                   className="text-blue-600 hover:text-blue-800 px-3 py-1 border border-blue-600 rounded hover:bg-blue-50"

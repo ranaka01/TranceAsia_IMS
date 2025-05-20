@@ -32,6 +32,7 @@ import CashierProducts from "./pages/Cashier/CashierProducts";
 import CashierShop from "./pages/Cashier/CashierShop";
 import CashierTransactions from "./pages/Cashier/CashierTransactions";
 import CashierReports from "./pages/Cashier/CashierReports";
+import CashierWarranty from "./pages/Cashier/CashierWarranty";
 
 
 // Technician components
@@ -128,6 +129,7 @@ const App = () => {
           <Route path="shop" element={<CashierShop />} />
           <Route path="transactions" element={<CashierTransactions />} />
           <Route path="reports" element={<CashierReports />} />
+          <Route path="warranty" element={<CashierWarranty />} />
         </Route>
 
         {/* Technician routes - Uncomment when ready */}

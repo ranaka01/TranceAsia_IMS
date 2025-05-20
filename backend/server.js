@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path'); // Add this for path handling
+const http = require('http');
 const db = require('./db');
 const UserRoutes = require('./routes/UserRoutes');
 const SupplierRoutes = require('./routes/Admin/SupplierRoutes');
@@ -12,8 +13,10 @@ const InventoryRoutes = require('./routes/Admin/InventoryRoutes');
 const RepairRoutes = require('./routes/RepairRoutes');
 const NotificationRoutes = require('./routes/NotificationRoutes');
 const DashboardRoutes = require('./routes/Admin/DashboardRoutes');
+const SupplierReturnRoutes = require('./routes/Admin/SupplierReturnRoutes');
 const cors = require('cors');
 const fs = require('fs'); // Add this for file system operations
+const websocketManager = require('./utils/websocketManager');
 
 // Initialize app first
 const app = express();
@@ -43,6 +46,7 @@ app.use('/inventory', InventoryRoutes);
 app.use('/repairs', RepairRoutes);
 app.use('/notifications', NotificationRoutes);
 app.use('/dashboard', DashboardRoutes);
+app.use('/supplier-returns', SupplierReturnRoutes);
 //app.use('/products', require('./routes/productRoute'));
 
 
@@ -53,9 +57,17 @@ async function startServer() {
         await db.query("SELECT 1");
         console.log('Database connected successfully');
 
-        app.listen(PORT, () => {
+        // Create HTTP server
+        const server = http.createServer(app);
+
+        // Initialize WebSocket server
+        websocketManager.initialize(server);
+
+        // Start the server
+        server.listen(PORT, () => {
             console.log('Server is running on port', PORT);
             console.log(`Profile images available at: http://localhost:${PORT}/uploads/`);
+            console.log('WebSocket server is running');
         });
     } catch (error) {
         console.error('Database connection failed:', error);

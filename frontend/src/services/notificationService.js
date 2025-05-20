@@ -18,54 +18,73 @@ export const getNotifications = async (filters = {}) => {
     const response = await API.get(`/notifications${queryString}`);
     console.log('API response:', response.data);
 
+    // Check if the response has the expected structure
+    if (!response.data || !response.data.data || !response.data.data.notifications) {
+      console.error('Unexpected API response structure:', response.data);
+
+      // Try to handle different response formats
+      if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
+        console.log('Alternative response format detected, using data array directly');
+        return processNotifications(response.data.data);
+      }
+
+      return [];
+    }
+
     // Process notifications to handle potential data parsing errors
     const notifications = response.data.data.notifications || [];
     console.log('Raw notifications from API:', notifications);
 
-    return notifications.map(notification => {
-      console.log('Processing notification:', notification.id, notification.type);
-
-      // Handle potential JSON parsing errors for the data field
-      if (notification.data && typeof notification.data === 'string') {
-        try {
-          notification.data = JSON.parse(notification.data);
-          console.log('Successfully parsed data for notification:', notification.id);
-        } catch (err) {
-          console.error(`Error parsing notification data for ID ${notification.id}:`, err);
-          notification.data = { error: 'Invalid data format' };
-        }
-      } else if (!notification.data && notification.type === 'repair') {
-        // Create default data structure for repair notifications if missing
-        console.warn(`Repair notification ${notification.id} missing data, creating default structure`);
-        notification.data = {
-          repairId: 'Unknown',
-          customer: 'Unknown',
-          deviceType: 'Unknown',
-          deviceModel: 'Unknown',
-          previousStatus: 'Unknown',
-          newStatus: 'Unknown',
-          timestamp: new Date().toISOString()
-        };
-      }
-
-      // Ensure both is_read and isRead properties exist for compatibility
-      if (notification.isRead !== undefined && notification.is_read === undefined) {
-        notification.is_read = notification.isRead;
-      } else if (notification.is_read !== undefined && notification.isRead === undefined) {
-        notification.isRead = notification.is_read;
-      } else if (notification.isRead === undefined && notification.is_read === undefined) {
-        // Default to unread if neither property exists
-        notification.is_read = false;
-        notification.isRead = false;
-      }
-
-      return notification;
-    });
+    return processNotifications(notifications);
   } catch (error) {
     console.error('Error fetching notifications:', error);
+    console.error('Error details:', error.response?.data || error.message);
     // Return empty array instead of throwing error to prevent UI from breaking
     return [];
   }
+};
+
+// Helper function to process notifications
+const processNotifications = (notifications) => {
+  return notifications.map(notification => {
+    console.log('Processing notification:', notification.id, notification.type);
+
+    // Handle potential JSON parsing errors for the data field
+    if (notification.data && typeof notification.data === 'string') {
+      try {
+        notification.data = JSON.parse(notification.data);
+        console.log('Successfully parsed data for notification:', notification.id);
+      } catch (err) {
+        console.error(`Error parsing notification data for ID ${notification.id}:`, err);
+        notification.data = { error: 'Invalid data format' };
+      }
+    } else if (!notification.data && notification.type === 'repair') {
+      // Create default data structure for repair notifications if missing
+      console.warn(`Repair notification ${notification.id} missing data, creating default structure`);
+      notification.data = {
+        repairId: notification.reference_id || 'Unknown',
+        customer: 'Unknown',
+        deviceType: 'Unknown',
+        deviceModel: 'Unknown',
+        previousStatus: 'Unknown',
+        newStatus: 'Unknown',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // Ensure both is_read and isRead properties exist for compatibility
+    if (notification.isRead !== undefined && notification.is_read === undefined) {
+      notification.is_read = notification.isRead;
+    } else if (notification.is_read !== undefined && notification.isRead === undefined) {
+      notification.isRead = notification.is_read;
+    } else if (notification.isRead === undefined && notification.is_read === undefined) {
+      // Default to unread if neither property exists
+      notification.is_read = false;
+      notification.isRead = false;
+    }
+
+    return notification;
+  });
 };
 
 // Get unread notification count

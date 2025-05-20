@@ -32,6 +32,33 @@ exports.getAllRepairs = async (req, res) => {
   }
 };
 
+// Get repairs assigned to a specific technician
+exports.getTechnicianRepairs = async (req, res) => {
+  try {
+    // Get the technician ID from the authenticated user
+    const technicianId = req.user.userId;
+    const search = req.query.search || '';
+
+    console.log(`Fetching repairs for technician ID: ${technicianId}`);
+
+    const repairs = await Repair.findByTechnician(technicianId, search);
+
+    res.status(200).json({
+      status: 'success',
+      results: repairs.length,
+      data: {
+        repairs
+      }
+    });
+  } catch (error) {
+    console.error("Error in getTechnicianRepairs:", error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error'
+    });
+  }
+};
+
 // Get a specific repair
 exports.getRepairById = async (req, res) => {
   try {

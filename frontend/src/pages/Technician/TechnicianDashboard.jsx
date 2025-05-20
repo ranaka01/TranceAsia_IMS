@@ -4,7 +4,7 @@ import SearchInput from "../../components/UI/SearchInput";
 import ViewRepairModal from "../Admin/ViewRepairModal";
 import StatusChangeModal from "../Admin/StatusChangeModal";
 import RepairReceiptModal from "../Admin/RepairReceiptModal";
-import { getAllRepairs, createRepair, updateRepair, updateRepairStatus, deleteRepair } from "../../services/repairService";
+import { getTechnicianRepairs, createRepair, updateRepair, updateRepairStatus, deleteRepair } from "../../services/repairService";
 import { getAllTechnicians } from "../../services/userService";
 import { toast } from "react-toastify";
 import { formatDeadlineDate } from "../../utils/dateUtils";
@@ -127,8 +127,10 @@ const RepairManagement = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch repairs
-        const repairsData = await getAllRepairs();
+        // Fetch repairs assigned to the logged-in technician
+        console.log('Fetching repairs assigned to the logged-in technician...');
+        const repairsData = await getTechnicianRepairs();
+        console.log('Technician repairs received:', repairsData);
 
         // Sort repairs by ID in descending order (newest to oldest)
         const sortedRepairs = [...(repairsData || [])].sort((a, b) => {
@@ -272,7 +274,7 @@ const RepairManagement = () => {
       toast.success("Repair created successfully");
 
       // Refresh the repairs list
-      const repairsData = await getAllRepairs();
+      const repairsData = await getTechnicianRepairs();
 
       // Sort repairs by ID in descending order (newest to oldest)
       const sortedRepairs = [...(repairsData || [])].sort((a, b) => {
@@ -308,7 +310,7 @@ const RepairManagement = () => {
       toast.success("Repair updated successfully");
 
       // Refresh the repairs list
-      const repairsData = await getAllRepairs();
+      const repairsData = await getTechnicianRepairs();
 
       // Sort repairs by ID in descending order (newest to oldest)
       const sortedRepairs = [...(repairsData || [])].sort((a, b) => {
@@ -354,7 +356,7 @@ const RepairManagement = () => {
         toast.success(`Repair status updated successfully from "${currentRepair.status}" to "${newStatus}"`);
 
         // Refresh the repairs list
-        const repairsData = await getAllRepairs();
+        const repairsData = await getTechnicianRepairs();
 
         // Sort repairs by ID in descending order (newest to oldest)
         const sortedRepairs = [...(repairsData || [])].sort((a, b) => {
@@ -388,7 +390,7 @@ const RepairManagement = () => {
       toast.success("Repair deleted successfully");
 
       // Refresh the repairs list
-      const repairsData = await getAllRepairs();
+      const repairsData = await getTechnicianRepairs();
 
       // Sort repairs by ID in descending order (newest to oldest)
       const sortedRepairs = [...(repairsData || [])].sort((a, b) => {
@@ -503,7 +505,7 @@ const RepairManagement = () => {
   return (
     <div className="p-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-semibold">Repair Management</h1>
+        <h1 className="text-xl font-semibold">My Assigned Repairs</h1>
 
         {/* Date filter section */}
         <div className="flex items-center relative" ref={datePickerRef}>
@@ -696,7 +698,7 @@ const RepairManagement = () => {
                           </svg>
                         </button>
                       )}
-                      <button
+                      {/* <button
                         onClick={() => handlePrintBill(repair)}
                         className={`p-1 ${repair.status === "Picked Up" ? "text-purple-600 hover:text-purple-800" : "text-purple-400 hover:text-purple-600"}`}
                         title={repair.status === "Picked Up" ? "Generate Receipt PDF" : "PDF receipts can only be generated for repairs with 'Picked Up' status"}
@@ -715,7 +717,7 @@ const RepairManagement = () => {
                             d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
                           />
                         </svg>
-                      </button>
+                      </button> */}
                       <button
                         onClick={() => handlePrintWorkOrder(repair)}
                         className="p-1 text-indigo-600 hover:text-indigo-800"
@@ -783,7 +785,7 @@ const RepairManagement = () => {
       </div> */}
 
       {/* Add Repair Modal */}
-      
+
 
       {/* View/Edit Repair Modal */}
       {isViewModalOpen && currentRepair && (

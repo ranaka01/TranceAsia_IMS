@@ -2,6 +2,7 @@ import { usePDF } from 'react-to-pdf';
 import React, { useState, useEffect, useRef } from "react";
 import API from "../../utils/api";
 import AddCustomerModal from "./AddCustomerModal";
+import { jwtDecode } from 'jwt-decode';
 
 // CSS styles for PDF printing - using only basic CSS compatible with PDF generation
 const pdfStyles = `
@@ -807,6 +808,18 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
   const handlePaymentComplete = async () => {
     setIsSubmitting(true);
     try {
+      // Get current user ID from token
+      let userId = null;
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const decoded = jwtDecode(token);
+          userId = decoded.userId;
+        } catch (error) {
+          console.error("Error decoding token:", error);
+        }
+      }
+
       const saleData = {
         customer: {
           name: customerName || "Walk-in Customer",
@@ -824,6 +837,8 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
         payment_method: paymentMethod,
         amount_paid: amountPaid,
         change_amount: changeAmount,
+        // Include the current user's ID
+        created_by: userId
       };
 
       const response = await API.post("/sales", saleData);
@@ -984,7 +999,7 @@ const AddSaleModal = ({ isOpen, onClose, onSave, currentSale = null }) => {
 
   return (
     <div className="fixed inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-50">
-    
+
       {/* Add style tag for PDF printing */}
       <style>{pdfStyles}</style>
       <div className="bg-white w-full h-full max-h-screen flex flex-col">

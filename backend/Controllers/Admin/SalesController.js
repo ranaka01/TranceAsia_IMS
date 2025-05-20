@@ -133,7 +133,7 @@ exports.createSale = async (req, res) => {
       payment_method: payment_method || 'Cash',
       amount_paid: amount_paid || 0,
       change_amount: change_amount || 0,
-      created_by: req.user.id
+      created_by: req.user.userId
     };
 
     const sale = await Sale.create(saleData);
