@@ -16,7 +16,9 @@ import {
   MdChevronRight,
   MdNotifications,
   MdBarChart,
-  MdAssignmentReturn
+  MdAssignmentReturn,
+  MdSettings,
+  MdHistory
 } from "react-icons/md";
 import tacLogo from "../../assets/tac-logo.png";
 import API from "../../utils/api";
@@ -106,6 +108,8 @@ const Sidebar = ({ onToggleSidebar }) => {
     notifications: "#EC4899", // Pink
     reports: "#8B5CF6", // Purple
     returns: "#F59E0B", // Amber
+    settings: "#0EA5E9", // Sky blue for settings
+    undoLogs: "#6366F1", // Indigo for undo logs
   };
 
   const navItems = [
@@ -159,11 +163,11 @@ const Sidebar = ({ onToggleSidebar }) => {
       title: "Warranty",
       path: "/admin/warranty",
     },
-    {
-      icon: <MdNotifications size={20} color={iconColors.notifications} />,
-      title: "Notifications",
-      path: "/admin/notifications",
-    },
+    // {
+    //   icon: <MdNotifications size={20} color={iconColors.notifications} />,
+    //   title: "Notifications",
+    //   path: "/admin/notifications",
+    // },
     {
       icon: <MdBarChart size={20} color={iconColors.reports} />,
       title: "Reports",
@@ -174,6 +178,16 @@ const Sidebar = ({ onToggleSidebar }) => {
       title: "Return",
       path: "/admin/return",
     },
+    {
+      icon: <MdHistory size={20} color={iconColors.undoLogs} />,
+      title: "Undo Logs",
+      path: "/admin/undo-logs",
+    },
+    // {
+    //   icon: <MdSettings size={20} color={iconColors.settings} />,
+    //   title: "Settings",
+    //   path: "/admin/settings",
+    // },
   ];
 
   return (

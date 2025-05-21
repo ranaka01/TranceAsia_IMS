@@ -2,6 +2,7 @@ const Sale = require('../../Models/Admin/SaleModel');
 const Customer = require('../../Models/Admin/CustomerModel');
 const Purchase = require('../../Models/Admin/PurchaseModel');
 const Product = require('../../Models/Admin/ProductModel');
+const db = require('../../db');
 
 // Get all sales with optional filtering
 exports.getAllSales = async (req, res) => {
@@ -229,15 +230,45 @@ exports.deleteSale = async (req, res) => {
     if (!canDelete.success) {
       return res.status(400).json({
         status: 'fail',
-        message: canDelete.message
+        message: canDelete.message,
+        timeLimit: canDelete.timeLimit,
+        remainingMinutes: 0
       });
     }
 
-    // Delete the sale
-    await Sale.delete(req.params.id);
+    // Validate reason data
+    const { reasonType, reasonDetails } = req.body;
 
-    res.status(204).json({
+    if (!reasonType) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Reason type is required'
+      });
+    }
+
+    // Check if reasonType is valid
+    const validReasonTypes = ['Incorrect item', 'Wrong quantity', 'Customer changed mind', 'Pricing error', 'Other'];
+    if (!validReasonTypes.includes(reasonType)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid reason type'
+      });
+    }
+
+    // If reason type is 'Other', reasonDetails is required
+    if (reasonType === 'Other' && (!reasonDetails || reasonDetails.trim() === '')) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Reason details are required when reason type is "Other"'
+      });
+    }
+
+    // Delete the sale with reason information
+    await Sale.delete(req.params.id, req.user.userId, reasonType, reasonDetails);
+
+    res.status(200).json({
       status: 'success',
+      message: 'Sale successfully undone',
       data: null
     });
   } catch (error) {
@@ -352,6 +383,67 @@ exports.getTopProducts = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getTopProducts:", error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Get the most recent sale for the current user
+exports.getLastSale = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get the most recent sale for this user
+    const [result] = await db.query(`
+      SELECT invoice_no as id
+      FROM invoice
+      WHERE created_by = ?
+      ORDER BY date DESC
+      LIMIT 1
+    `, [userId]);
+
+    if (result.length === 0) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'No recent sales found for this user'
+      });
+    }
+
+    const lastSaleId = result[0].id;
+
+    // Check if the sale can be deleted (e.g., not too old)
+    const canDelete = await Sale.canDelete(lastSaleId);
+
+    // Get the sale details
+    const sale = await Sale.findById(lastSaleId);
+
+    if (!canDelete.success) {
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          sale,
+          canUndo: false,
+          message: canDelete.message,
+          timeLimit: canDelete.timeLimit,
+          remainingMinutes: 0
+        }
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        sale,
+        canUndo: true,
+        timeLimit: canDelete.timeLimit,
+        diffInMinutes: canDelete.diffInMinutes,
+        remainingMinutes: canDelete.remainingMinutes
+      }
+    });
+  } catch (error) {
+    console.error("Error in getLastSale:", error);
     res.status(500).json({
       status: 'error',
       message: error.message || 'Internal server error'

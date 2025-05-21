@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { format, startOfDay, endOfDay } from "date-fns";
 import Button from "../../components/UI/Button";
 import SearchInput from "../../components/UI/SearchInput";
 import AddSaleModal from "../Admin/AddSaleModal";
+import UndoSaleModal from "../../components/Cashier/UndoSaleModal";
 import API from "../../utils/api";
-import { FaCalendarAlt, FaTimes } from "react-icons/fa";
+import { FaCalendarAlt, FaTimes, FaUndo, FaInfoCircle } from "react-icons/fa";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { toast } from "react-toastify";
 
 const CashierShop = () => {
   const [sales, setSales] = useState([]);
@@ -19,7 +21,14 @@ const CashierShop = () => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [lastSale, setLastSale] = useState(null);
+  const [canUndoLastSale, setCanUndoLastSale] = useState(false);
+  const [isUndoLoading, setIsUndoLoading] = useState(false);
+  const [isUndoModalOpen, setIsUndoModalOpen] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(0);
+  const [timeLimit, setTimeLimit] = useState(10); // Default 10 minutes
   const datePickerRef = useRef(null);
+  const timerRef = useRef(null);
 
   // Open AddSaleModal automatically when component mounts
   useEffect(() => {
@@ -36,6 +45,122 @@ const CashierShop = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Format remaining time as MM:SS
+  const formatRemainingTime = useCallback(() => {
+    const minutes = Math.floor(remainingTime / 60);
+    const seconds = remainingTime % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, [remainingTime]);
+
+  // Fetch the last sale for the current user
+  const fetchLastSale = async () => {
+    try {
+      const response = await API.get('sales/last');
+      if (response.data?.status === 'success') {
+        setLastSale(response.data.data.sale);
+        setCanUndoLastSale(response.data.data.canUndo);
+
+        // Set time limit and remaining time for countdown
+        if (response.data.data.timeLimit) {
+          setTimeLimit(response.data.data.timeLimit);
+        }
+
+        if (response.data.data.remainingMinutes) {
+          // Convert minutes to seconds for the countdown
+          const remainingSecs = Math.floor(response.data.data.remainingMinutes * 60);
+          setRemainingTime(remainingSecs);
+
+          // Clear any existing timer
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+
+          // Start countdown timer if there's time remaining
+          if (remainingSecs > 0 && response.data.data.canUndo) {
+            timerRef.current = setInterval(() => {
+              setRemainingTime(prev => {
+                if (prev <= 1) {
+                  // Time's up, clear the timer and disable undo
+                  clearInterval(timerRef.current);
+                  setCanUndoLastSale(false);
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
+          }
+        }
+      } else {
+        setLastSale(null);
+        setCanUndoLastSale(false);
+        setRemainingTime(0);
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching last sale:", error);
+      setLastSale(null);
+      setCanUndoLastSale(false);
+      setRemainingTime(0);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    }
+  };
+
+  // Check if we can open the undo modal
+  const canOpenUndoModal = () => {
+    if (!lastSale) {
+      toast.error("No recent sale found to undo");
+      return false;
+    }
+    return true;
+  };
+
+  // Handle undoing the last sale
+  const handleUndoLastSale = async (reasonType, reasonDetails) => {
+    if (!lastSale) {
+      toast.error("No recent sale found to undo");
+      return;
+    }
+
+    setIsUndoLoading(true);
+    try {
+      await API.delete(`sales/${lastSale.invoice_no || lastSale.bill_no}`, {
+        data: { reasonType, reasonDetails }
+      });
+      toast.success("Last sale has been successfully undone");
+
+      // Refresh the sales list
+      setStartDate(prev => prev); // This will trigger a refetch
+
+      // Reset the last sale
+      setLastSale(null);
+      setCanUndoLastSale(false);
+
+      // Clear the timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    } catch (error) {
+      console.error("Error undoing last sale:", error);
+      toast.error(error.response?.data?.message || "Failed to undo last sale");
+      throw error; // Re-throw to let the modal handle the error state
+    } finally {
+      setIsUndoLoading(false);
+    }
+  };
+
+  // Cleanup timer when component unmounts
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
   }, []);
 
@@ -61,6 +186,9 @@ const CashierShop = () => {
         const data = response.data?.data?.sales || [];
         setSales(data);
         setFilteredSales(data);
+
+        // Fetch the last sale after loading the sales list
+        fetchLastSale();
       } catch (err) {
         console.error("Error fetching sales:", err);
         setError("Failed to load sales. Please try again later.");
@@ -310,8 +438,33 @@ const CashierShop = () => {
         </div>
       )}
 
-      {/* Add Sale button (positioned at bottom right) */}
-      <div className="fixed bottom-6 right-6">
+      {/* Add Sale and Undo Last Sale buttons (positioned at bottom right) */}
+      <div className="fixed bottom-6 right-6 flex space-x-3">
+        {canUndoLastSale && (
+          <div className="relative group">
+            <Button
+              variant="secondary"
+              onClick={() => canOpenUndoModal() && setIsUndoModalOpen(true)}
+              className="bg-yellow-500 text-white py-2 px-6 rounded hover:bg-yellow-600 transition-colors flex items-center"
+              disabled={isUndoLoading || remainingTime <= 0}
+            >
+              {isUndoLoading ? (
+                <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent mr-2"></div>
+              ) : (
+                <FaUndo className="mr-2" />
+              )}
+              Undo Last Sale {remainingTime > 0 && `(${formatRemainingTime()})`}
+            </Button>
+
+            {/* Tooltip for time limit */}
+            <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-gray-800"></div>
+              {remainingTime > 0
+                ? `You have ${formatRemainingTime()} to undo this sale`
+                : `Time limit (${timeLimit} minutes) has expired`}
+            </div>
+          </div>
+        )}
         <Button
           variant="primary"
           onClick={handleAddSale}
@@ -320,6 +473,16 @@ const CashierShop = () => {
           Add Sale
         </Button>
       </div>
+
+      {/* Undo Sale Modal */}
+      {isUndoModalOpen && (
+        <UndoSaleModal
+          isOpen={isUndoModalOpen}
+          onClose={() => setIsUndoModalOpen(false)}
+          onConfirm={handleUndoLastSale}
+          sale={lastSale}
+        />
+      )}
 
       {/* Add Sale Modal */}
       {isAddSaleModalOpen && (

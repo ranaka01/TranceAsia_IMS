@@ -8,7 +8,9 @@ import {
   MdLogout,
   MdChevronLeft,
   MdChevronRight,
+  MdSecurity,
   MdBarChart,
+
 } from "react-icons/md";
 import tacLogo from "../../assets/tac-logo.png";
 import API from "../../utils/api";
@@ -88,7 +90,8 @@ const CashierSidebar = ({ onToggleSidebar }) => {
     customers: "#3B82F6", // Blue
     transactions: "#8B5CF6", // Purple
     reports: "#4F46E5",   // Indigo
-    logout: "#EF4444",    // Red
+    logout: "#EF4444", 
+    warranty: "#EF4444",   // Red
     toggle: "#4F46E5",    // Indigo for toggle
   };
 
@@ -115,7 +118,7 @@ const CashierSidebar = ({ onToggleSidebar }) => {
       path: "/cashier/customers",
     },
     {
-      icon: <MdPeople size={20} color={iconColors.customers} />,
+      icon: <MdSecurity size={20} color={iconColors.warranty} />,
       title: "Warranty",
       path: "/cashier/warranty",
     },

@@ -57,6 +57,7 @@ class Repair {
         const products = await this.getRepairProducts(row.repair_id);
 
         return {
+          // Keep original properties for backward compatibility
           id: row.repair_id.toString(),
           customer: row.customer_name,
           customerId: row.customer_id,
@@ -77,7 +78,19 @@ class Repair {
           products: products.map(p => p.name),
           password: row.device_password || '',
           additionalNotes: row.additional_notes || '',
-          isUnderWarranty: row.is_under_warranty === 1
+          isUnderWarranty: row.is_under_warranty === 1,
+
+          // Add properties with names matching the Reports.jsx expectations
+          repair_id: row.repair_id,
+          customer_name: row.customer_name,
+          device_type: row.device_type,
+          device_model: row.device_model,
+          issue_description: row.issue_description,
+          date_received: row.date_received,
+          date_completed: row.date_completed,
+          estimated_cost: parseFloat(row.estimated_cost),
+          advance_payment: parseFloat(row.advance_payment),
+          extra_expenses: parseFloat(row.extra_expenses || 0)
         };
       }));
 
@@ -131,6 +144,7 @@ class Repair {
       const products = await this.getRepairProducts(row.repair_id);
 
       return {
+        // Keep original properties for backward compatibility
         id: row.repair_id.toString(),
         customer: row.customer_name,
         customerId: row.customer_id,
@@ -151,7 +165,19 @@ class Repair {
         products: products.map(p => p.name),
         password: row.device_password || '',
         additionalNotes: row.additional_notes || '',
-        isUnderWarranty: row.is_under_warranty === 1
+        isUnderWarranty: row.is_under_warranty === 1,
+
+        // Add properties with names matching the Reports.jsx expectations
+        repair_id: row.repair_id,
+        customer_name: row.customer_name,
+        device_type: row.device_type,
+        device_model: row.device_model,
+        issue_description: row.issue_description,
+        date_received: row.date_received,
+        date_completed: row.date_completed,
+        estimated_cost: parseFloat(row.estimated_cost),
+        advance_payment: parseFloat(row.advance_payment),
+        extra_expenses: parseFloat(row.extra_expenses || 0)
       };
     } catch (error) {
       throw new Error(`Error fetching repair: ${error.message}`);

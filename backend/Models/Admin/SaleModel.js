@@ -351,6 +351,9 @@ class Sale {
   // Check if a sale can be deleted
   static async canDelete(id) {
     try {
+      // Import SystemSettings here to avoid circular dependencies
+      const SystemSettings = require('./SystemSettingsModel');
+
       // Check if there are warranty claims associated with the sale
       const [warrantyResults] = await db.query(
         'SELECT COUNT(*) as count FROM warranty_claims WHERE sale_id IN (SELECT sale_id FROM sales WHERE invoice_no = ?)',
@@ -364,7 +367,7 @@ class Sale {
         };
       }
 
-      // Check if the sale is recent (e.g., within 24 hours)
+      // Check if the sale is recent based on configurable time limit
       const [saleResults] = await db.query(
         'SELECT date FROM invoice WHERE invoice_no = ?',
         [id]
@@ -377,31 +380,53 @@ class Sale {
         };
       }
 
+      // Get the configured time limit in minutes (default: 10 minutes)
+      const timeLimit = await SystemSettings.getSaleUndoTimeLimit();
+
       const saleDate = new Date(saleResults[0].date);
       const currentDate = new Date();
-      const diffInHours = (currentDate - saleDate) / (1000 * 60 * 60);
+      const diffInMinutes = (currentDate - saleDate) / (1000 * 60);
 
-      if (diffInHours > 24) {
+      // Calculate remaining time in minutes
+      const remainingMinutes = Math.max(0, timeLimit - diffInMinutes);
+
+      if (diffInMinutes > timeLimit) {
         return {
           success: false,
-          message: 'Cannot delete sales older than 24 hours'
+          message: `Cannot undo sales older than ${timeLimit} minutes`,
+          timeLimit,
+          diffInMinutes,
+          remainingMinutes: 0
         };
       }
 
       return {
-        success: true
+        success: true,
+        timeLimit,
+        diffInMinutes,
+        remainingMinutes
       };
     } catch (error) {
+      console.error(`Error checking if sale can be deleted:`, error);
       throw new Error(`Error checking if sale can be deleted: ${error.message}`);
     }
   }
 
   // Delete a sale and its items
-  static async delete(id) {
+  static async delete(id, userId, reasonType, reasonDetails) {
     // Use a transaction to ensure data consistency
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
+
+      // Get the complete sale data before deleting it (for audit log)
+      const saleData = await this.findById(id);
+      if (!saleData) {
+        throw new Error('Sale not found');
+      }
+
+      // Import SaleUndoLog here to avoid circular dependencies
+      const SaleUndoLog = require('./SaleUndoLogModel');
 
       // Get sale items to restore quantities
       const [items] = await connection.query(
@@ -436,6 +461,9 @@ class Sale {
 
       // Delete invoice
       await connection.query('DELETE FROM invoice WHERE invoice_no = ?', [id]);
+
+      // Log the undo operation
+      await SaleUndoLog.create(id, userId, reasonType, reasonDetails, saleData);
 
       // Commit the transaction
       await connection.commit();

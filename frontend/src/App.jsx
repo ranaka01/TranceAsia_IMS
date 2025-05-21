@@ -18,6 +18,8 @@ import Warranty from "./pages/Admin/Warranty"
 import Notifications from "./pages/Admin/notifications"
 import Reports from "./pages/Admin/Reports";
 import Return from "./pages/Admin/Return";
+import UndoLogs from "./pages/Admin/UndoLogs";
+import SystemSettings from "./pages/Admin/SystemSettings";
 
 
 // Auth components
@@ -111,7 +113,8 @@ const App = () => {
           <Route path="notifications" element={<Notifications />} />
           <Route path="reports" element={<Reports/>} />
           <Route path="return" element={<Return/>} />
-
+          <Route path="undo-logs" element={<UndoLogs/>} />
+          <Route path="settings" element={<SystemSettings/>} />
         </Route>
 
         {/* Cashier routes */}

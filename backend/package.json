@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "init-repair-db": "node scripts/initRepairDb.js"
+    "init-repair-db": "node scripts/initRepairDb.js",
+    "create-purchase-undo-logs-table": "node scripts/createPurchaseUndoLogsTable.js",
+    "fix-purchase-undo-logs-table": "node scripts/fixPurchaseUndoLogsTable.js"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +19,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",
     "mysql": "^2.18.1",
     "mysql2": "^3.14.0",

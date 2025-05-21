@@ -15,5 +15,17 @@ router.get('/repair-status', authorizeRole(['Admin']), dashboardController.getRe
 router.get('/top-products', authorizeRole(['Admin']), dashboardController.getTopSellingProducts);
 router.get('/low-stock', authorizeRole(['Admin']), dashboardController.getLowStockItems);
 router.get('/category-revenue', authorizeRole(['Admin']), dashboardController.getRevenueByCategory);
+router.get('/sales-stats', authorizeRole(['Admin']), dashboardController.getSalesStats);
+
+// Purchase report routes
+router.get('/purchase-stats', authorizeRole(['Admin']), dashboardController.getPurchaseStats);
+router.get('/top-suppliers', authorizeRole(['Admin']), dashboardController.getTopSuppliers);
+router.get('/purchase-category-breakdown', authorizeRole(['Admin']), dashboardController.getPurchaseCategoryBreakdown);
+
+// Repair report routes
+router.get('/repair-stats', authorizeRole(['Admin']), dashboardController.getRepairStats);
+router.get('/technician-performance', authorizeRole(['Admin']), dashboardController.getTechnicianPerformance);
+router.get('/device-type-analysis', authorizeRole(['Admin']), dashboardController.getDeviceTypeAnalysis);
+router.get('/revenue-by-date', authorizeRole(['Admin']), dashboardController.getRevenueByDate);
 
 module.exports = router;

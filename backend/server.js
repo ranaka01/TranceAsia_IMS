@@ -14,6 +14,9 @@ const RepairRoutes = require('./routes/RepairRoutes');
 const NotificationRoutes = require('./routes/NotificationRoutes');
 const DashboardRoutes = require('./routes/Admin/DashboardRoutes');
 const SupplierReturnRoutes = require('./routes/Admin/SupplierReturnRoutes');
+const SystemSettingsRoutes = require('./routes/Admin/SystemSettingsRoutes');
+const SaleUndoLogRoutes = require('./routes/Admin/SaleUndoLogRoutes');
+const CashierSettingsRoutes = require('./routes/Cashier/CashierSettingsRoutes');
 const cors = require('cors');
 const fs = require('fs'); // Add this for file system operations
 const websocketManager = require('./utils/websocketManager');
@@ -47,6 +50,9 @@ app.use('/repairs', RepairRoutes);
 app.use('/notifications', NotificationRoutes);
 app.use('/dashboard', DashboardRoutes);
 app.use('/supplier-returns', SupplierReturnRoutes);
+app.use('/settings', SystemSettingsRoutes);
+app.use('/undo-logs', SaleUndoLogRoutes);
+app.use('/cashier-settings', CashierSettingsRoutes);
 //app.use('/products', require('./routes/productRoute'));
 
 

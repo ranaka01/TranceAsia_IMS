@@ -204,3 +204,192 @@ exports.getAvailablePurchasesByProduct = async (req, res) => {
     res.status(500).json({ status: 'error', message: error.message });
   }
 };
+
+// Undo the last purchase
+exports.undoLastPurchase = async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const userId = req.user.id;
+    const username = req.user.username || 'Unknown User';
+
+    console.log('Undoing last purchase for user:', username, 'with reason:', reason);
+
+    // Find the most recent purchase for this user
+    const lastPurchase = await Purchase.findLastPurchase(userId);
+
+    if (!lastPurchase) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'No recent purchases found to undo'
+      });
+    }
+
+    console.log('Found last purchase:', lastPurchase);
+
+    // Check if the purchase can be undone (e.g., no sales associated with it)
+    const canUndo = await Purchase.canUndo(lastPurchase.purchase_id);
+
+    if (!canUndo.success) {
+      return res.status(400).json({
+        status: 'fail',
+        message: canUndo.message
+      });
+    }
+
+    // Undo the purchase (log it and delete it)
+    await Purchase.undoLastPurchase(lastPurchase.purchase_id, username, reason);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Last purchase has been successfully undone',
+      data: {
+        purchase: lastPurchase
+      }
+    });
+  } catch (error) {
+    console.error("Error in undoLastPurchase:", error);
+
+    if (error.message.includes('not found') || error.message.includes('No recent purchases')) {
+      return res.status(404).json({
+        status: 'fail',
+        message: error.message
+      });
+    }
+
+    if (error.message.includes('cannot undo') || error.message.includes('associated sales')) {
+      return res.status(400).json({
+        status: 'fail',
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Get purchase undo logs
+exports.getPurchaseUndoLogs = async (req, res) => {
+  try {
+    console.log('getPurchaseUndoLogs called with query:', req.query);
+    const { page = 1, limit = 10, search = '', startDate, endDate } = req.query;
+
+    // Prepare options for the model
+    const options = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      search
+    };
+
+    // Add date filters if provided
+    if (startDate) {
+      options.startDate = new Date(startDate);
+    }
+
+    if (endDate) {
+      options.endDate = new Date(endDate);
+    }
+
+    console.log('Fetching purchase undo logs with options:', options);
+
+    // Get logs from the model
+    const result = await Purchase.getPurchaseUndoLogs(options);
+
+    console.log(`Found ${result.logs.length} purchase undo logs`);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        logs: result.logs,
+        pagination: {
+          currentPage: result.currentPage,
+          totalPages: result.totalPages,
+          totalCount: result.totalCount,
+          limit: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error in getPurchaseUndoLogs:", error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Export purchase undo logs as CSV
+exports.exportPurchaseUndoLogsCSV = async (req, res) => {
+  try {
+    console.log('exportPurchaseUndoLogsCSV called with query:', req.query);
+    const { search = '', startDate, endDate } = req.query;
+
+    // Prepare options for the model - no pagination for export
+    const options = {
+      page: 1,
+      limit: 1000, // High limit to get all records
+      search,
+      forExport: true
+    };
+
+    // Add date filters if provided
+    if (startDate) {
+      options.startDate = new Date(startDate);
+    }
+
+    if (endDate) {
+      options.endDate = new Date(endDate);
+    }
+
+    // Get logs from the model
+    const result = await Purchase.getPurchaseUndoLogs(options);
+    const logs = result.logs;
+
+    console.log(`Exporting ${logs.length} purchase undo logs to CSV`);
+
+    // Check if we have the json2csv package
+    let json2csv;
+    try {
+      json2csv = require('json2csv');
+    } catch (err) {
+      console.error('json2csv package not found:', err);
+      return res.status(500).json({
+        status: 'error',
+        message: 'CSV export functionality is not available. Please install the json2csv package.'
+      });
+    }
+
+    // Define fields for CSV
+    const fields = [
+      { label: 'Purchase ID', value: 'purchase_id' },
+      { label: 'Product', value: 'product_name' },
+      { label: 'Supplier', value: 'supplier_name' },
+      { label: 'Quantity', value: 'quantity' },
+      { label: 'Buying Price', value: 'buying_price' },
+      { label: 'Date Purchased', value: row => new Date(row.date_purchased).toISOString().split('T')[0] },
+      { label: 'Date Undone', value: row => new Date(row.date_undone).toISOString().split('T')[0] },
+      { label: 'Undone By', value: 'undone_by' },
+      { label: 'Reason', value: 'reason' }
+    ];
+
+    // Generate CSV
+    const { Parser } = json2csv;
+    const parser = new Parser({ fields });
+    const csv = parser.parse(logs);
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=purchase_undo_logs.csv');
+
+    // Send CSV data
+    res.status(200).send(csv);
+  } catch (error) {
+    console.error("Error in exportPurchaseUndoLogsCSV:", error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Internal server error'
+    });
+  }
+};
